@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>طراح رؤیاها</title>
+<style>
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Light.woff2) format("woff2"); font-weight: 300; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Regular.woff2) format("woff2"); font-weight: 400; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Bold.woff2) format("woff2"); font-weight: 700; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Black.woff2) format("woff2"); font-weight: 900; }
+
+  html, body { margin: 0; height: 100%; background: #061a3a; overflow: hidden; }
+  body { display: grid; place-items: center; font-family: Vazirmatn, sans-serif; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; color: #fff; }
+  canvas { position: absolute; inset: 0; }
+
+  /* photo frame: x 160–920, y 290–1303 (3:4) */
+  #frame { position: absolute; left: 160px; top: 290px; width: 760px; height: 1013px;
+    overflow: hidden; opacity: 0; box-sizing: border-box; }
+  #frame img { width: 100%; height: 100%; object-fit: cover; display: block; transform-origin: 50% 40%; }
+
+  .t { position: absolute; left: 0; right: 0; text-align: center; white-space: nowrap; opacity: 0; }
+  #date   { top: 640px;  font-size: 60px;  font-weight: 300; color: #cfe6ff; letter-spacing: 1px; }
+  #title  { top: 730px;  font-size: 112px; font-weight: 900; line-height: 1.35; }
+  #name   { top: 1318px; font-size: 200px; font-weight: 900; line-height: 1.25; color: #ffd23f;
+            text-shadow: 7px 7px 0 #e63946, 0 0 40px rgba(255,210,63,.35); }
+  #l1     { top: 1590px; font-size: 58px;  font-weight: 700; line-height: 1.5; }
+  #l2     { top: 1590px; font-size: 64px;  font-weight: 700; line-height: 1.5; color: #ffd23f; }
+  #wish   { top: 1340px; font-size: 150px; font-weight: 900; line-height: 1.35; color: #fff;
+            text-shadow: 7px 7px 0 #e63946; }
+  #sign   { top: 1585px; font-size: 56px;  font-weight: 400; color: #ffd23f; }
+  #dimlbl { top: 162px;  font-size: 38px;  font-weight: 700; color: #ffd23f; }
+  .cell { position: absolute; top: 1786px; font-size: 30px; font-weight: 400; color: #cfe6ff;
+          text-align: center; opacity: 0; white-space: nowrap; }
+  .cell b { font-weight: 700; color: #fff; }
+
+  #controls { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); font: 14px system-ui; }
+  #controls button { font: inherit; padding: 6px 14px; border-radius: 999px; border: 1px solid #fff6;
+    background: #0008; color: #fff; cursor: pointer; }
+  .render #controls { display: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="bg" width="1080" height="1920"></canvas>
+  <div id="frame"><img id="photo" src="assets/pariya.jpg" alt=""></div>
+  <div class="t" id="date">۱۹ مهر</div>
+  <div class="t" id="title">روز جهانی دختر</div>
+  <div class="t" id="dimlbl">اندازه‌ی عشق: بی‌نهایت</div>
+  <div class="t" id="name">پریا</div>
+  <div class="t" id="l1">طراحِ زیباترین لحظه‌های زندگیِ ما</div>
+  <div class="t" id="l2">همیشه بدرخش، دخترم</div>
+  <div class="t" id="wish">روزت مبارک</div>
+  <div class="t" id="sign">با عشق</div>
+  <div class="cell" id="c1" style="left:700px;width:300px">پروژه: <b>پریا</b></div>
+  <div class="cell" id="c2" style="left:390px;width:300px">مقیاس: <b>۱:۱</b></div>
+  <div class="cell" id="c3" style="left:80px;width:300px">تاریخ: <b>۱۹ مهر ۱۴۰۵</b></div>
+  <canvas id="fx" width="1080" height="1920"></canvas>
+</div>
+<div id="controls"><button id="replay">پخش دوباره</button></div>
+<audio id="music" src="assets/music.mp3" preload="auto"></audio>
+
+<script>
+const DURATION = 20.5;
+const W = 1080, H = 1920;
+const RENDER = new URLSearchParams(location.search).has('render');
+if (RENDER) document.documentElement.classList.add('render');
+
+// beat grid of the track (≈112.45 bpm); the drop lands on beat 13
+const BEAT = 60 / 112.45, OFFSET = 0.025;
+const b = n => OFFSET + n * BEAT;
+const DROP = b(13);
+const WISH = b(29);
+
+// frame geometry
+const FX = 160, FY = 290, FW = 760, FH = 1013;
+
+// ---------- helpers ----------
+const clamp = (x, a = 0, c = 1) => Math.min(c, Math.max(a, x));
+const lerp = (a, c, k) => a + (c - a) * k;
+const prog = (t, a, c) => clamp((t - a) / (c - a));
+const easeOut = k => 1 - Math.pow(1 - k, 3);
+const easeInOut = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const easeBack = k => { const c = 2.2; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+function rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
+// 1 on each beat after the drop, decaying quickly
+function pulse(t) {
+  if (t < DROP - .02) return 0;
+  const ph = ((t - OFFSET) % BEAT + BEAT) % BEAT;
+  return Math.exp(-ph * 9);
+}
+
+function show(el, t, inA, inB, outA, outB, { dy = 40, scale = .9, blur = 12, back = false } = {}) {
+  const p = prog(t, inA, inB);
+  const i = back ? easeBack(p) : easeOut(p);
+  const o = outA == null ? 0 : easeInOut(prog(t, outA, outB));
+  el.style.opacity = clamp(p * 1.6) * (1 - o);
+  el.style.transform = `translateY(${(1 - i) * dy - o * 30}px) scale(${lerp(scale, 1, i) * (1 + o * .05)})`;
+  el.style.filter = `blur(${(1 - clamp(p * 1.4)) * blur + o * blur}px)`;
+}
+
+// draw a line from (x1,y1) to (x2,y2) up to fraction k; returns head position
+function partLine(ctx, x1, y1, x2, y2, k) {
+  if (k <= 0) return null;
+  const x = lerp(x1, x2, k), y = lerp(y1, y2, k);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x, y); ctx.stroke();
+  return [x, y];
+}
+function arrow(ctx, x, y, dir, s = 16) {
+  ctx.beginPath(); ctx.moveTo(x, y);
+  ctx.lineTo(x - dir * s, y - s * .45); ctx.lineTo(x - dir * s, y + s * .45); ctx.closePath(); ctx.fill();
+}
+function glowDot(ctx, x, y, a = 1) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, 34);
+  g.addColorStop(0, `rgba(255,240,180,${a})`); g.addColorStop(1, 'rgba(255,210,63,0)');
+  ctx.fillStyle = g; ctx.fillRect(x - 34, y - 34, 68, 68);
+}
+
+// ---------- deterministic particle sets ----------
+const r = rng(1405);
+const shapes = Array.from({ length: 16 }, () => ({
+  x: r() * W, y: r() * H, s: 40 + r() * 90, kind: Math.floor(r() * 3), rot: r() * 6.28,
+  vr: (r() - .5) * .6, vy: 10 + r() * 30, a: .10 + r() * .12,
+}));
+const COLORS = ['#ffd23f', '#e63946', '#ffffff', '#8fd3ff', '#ffd23f'];
+function makeBurst(seed, n, power) {
+  const rr = rng(seed);
+  return Array.from({ length: n }, () => {
+    const ang = -Math.PI / 2 + (rr() - .5) * Math.PI * 1.7, v = power * (.35 + rr() * .9);
+    return { vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, w: 10 + rr() * 14, h: 6 + rr() * 10,
+      c: COLORS[Math.floor(rr() * COLORS.length)], spin: (rr() - .5) * 14, fl: 4 + rr() * 8, ph: rr() * 6.28 };
+  });
+}
+const burst1 = makeBurst(11, 140, 1500), burst2L = makeBurst(29, 90, 1400), burst2R = makeBurst(31, 90, 1400);
+// gentle confetti rain during the high-energy part
+const rain = Array.from({ length: 60 }, () => ({
+  x: r() * W, t0: DROP + r() * 13, vy: 160 + r() * 200, sway: 30 + r() * 50, w: 8 + r() * 10, h: 5 + r() * 8,
+  c: COLORS[Math.floor(r() * COLORS.length)], spin: (r() - .5) * 6, ph: r() * 6.28,
+}));
+
+function confetti(ctx, list, t0, ox, oy, t) {
+  const age = t - t0;
+  if (age < 0 || age > 4.5) return;
+  const drag = (1 - Math.exp(-2.6 * age)) / 2.6;
+  for (const p of list) {
+    const x = ox + p.vx * drag + Math.sin(p.ph + age * p.fl) * 18 * age;
+    const y = oy + p.vy * drag + 420 * age * age * .5;
+    if (y > H + 40) continue;
+    ctx.save(); ctx.globalAlpha = clamp(1.6 - age / 2.8);
+    ctx.translate(x, y); ctx.rotate(p.spin * age);
+    ctx.scale(1, Math.cos(p.ph + age * p.fl));
+    ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore();
+  }
+}
+
+// ---------- background: blueprint ----------
+const bg = document.getElementById('bg').getContext('2d');
+const fx = document.getElementById('fx').getContext('2d');
+
+function drawBg(t) {
+  const lift = easeOut(prog(t, DROP - .05, DROP + .6));
+  const g = bg.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, `rgb(${lerp(8, 16, lift)},${lerp(36, 64, lift)},${lerp(84, 140, lift)})`);
+  g.addColorStop(1, `rgb(${lerp(14, 22, lift)},${lerp(62, 98, lift)},${lerp(130, 190, lift)})`);
+  bg.fillStyle = g; bg.fillRect(0, 0, W, H);
+
+  // grid sweeps in from the top
+  const gk = easeOut(prog(t, 0, 1.4));
+  const p = pulse(t);
+  bg.lineWidth = 1;
+  for (let x = 0; x <= W; x += 30) {
+    const major = x % 150 === 0;
+    bg.strokeStyle = `rgba(160,205,255,${(major ? .22 : .08) + (major ? p * .12 : 0)})`;
+    bg.beginPath(); bg.moveTo(x + .5, 0); bg.lineTo(x + .5, H * gk); bg.stroke();
+  }
+  for (let y = 0; y <= H * gk; y += 30) {
+    const major = y % 150 === 0;
+    bg.strokeStyle = `rgba(160,205,255,${(major ? .22 : .08) + (major ? p * .12 : 0)})`;
+    bg.beginPath(); bg.moveTo(0, y + .5); bg.lineTo(W, y + .5); bg.stroke();
+  }
+
+  // floating outline shapes (circle / triangle / square), bouncing with the beat after the drop
+  const sa = prog(t, DROP - .1, DROP + .8) * (1 - prog(t, 19.6, 20.5));
+  if (sa > 0) {
+    bg.lineWidth = 3;
+    for (const s of shapes) {
+      const y = ((s.y - s.vy * t) % (H + 300) + H + 300) % (H + 300) - 150;
+      const sc = 1 + p * .18;
+      bg.save(); bg.translate(s.x, y); bg.rotate(s.rot + s.vr * t); bg.scale(sc, sc);
+      bg.strokeStyle = `rgba(255,255,255,${s.a * sa * 1.6})`;
+      bg.beginPath();
+      if (s.kind === 0) bg.arc(0, 0, s.s / 2, 0, 6.283);
+      else if (s.kind === 1) { bg.moveTo(0, -s.s / 2); bg.lineTo(s.s / 2, s.s / 2.6); bg.lineTo(-s.s / 2, s.s / 2.6); bg.closePath(); }
+      else bg.rect(-s.s / 2.6, -s.s / 2.6, s.s / 1.3, s.s / 1.3);
+      bg.stroke(); bg.restore();
+    }
+  }
+}
+
+// ---------- foreground: drafting lines, dimensions, confetti ----------
+function drawFx(t) {
+  fx.clearRect(0, 0, W, H);
+  const p = pulse(t);
+  const endFade = 1 - prog(t, 19.6, 20.5);
+
+  // frame outline, drawn edge by edge with overshooting construction lines
+  const L = FX, R = FX + FW, T = FY, B = FY + FH, O = 46;
+  const edges = [
+    [R + O, T, L - O, T], [L, T - O, L, B + O], [L - O, B, R + O, B], [R, B + O, R, T - O],
+  ];
+  const drawA = .5, drawB = 3.2;
+  const after = t > DROP;
+  fx.strokeStyle = after ? `rgba(255,255,255,${.55 * endFade})` : 'rgba(225,240,255,.9)';
+  fx.lineWidth = after ? 2 : 3;
+  let head = null;
+  edges.forEach((e, i) => {
+    const seg = (drawB - drawA) / 4;
+    const k = easeInOut(prog(t, drawA + i * seg, drawA + (i + 1) * seg));
+    const h = partLine(fx, ...e, k);
+    if (k > 0 && k < 1) head = h;
+  });
+  if (head) glowDot(fx, ...head);
+
+  // compass arc + diagonals inside the empty frame (intro only)
+  const introA = 1 - prog(t, DROP - .5, DROP);
+  if (introA > 0) {
+    fx.strokeStyle = `rgba(200,225,255,${.35 * introA})`; fx.lineWidth = 2;
+    fx.setLineDash([10, 10]);
+    partLine(fx, L, T, R, B, easeInOut(prog(t, 3.0, 3.9)));
+    partLine(fx, R, T, L, B, easeInOut(prog(t, 3.3, 4.2)));
+    fx.setLineDash([]);
+    const ak = easeInOut(prog(t, 3.6, 5.0));
+    if (ak > 0) {
+      fx.beginPath(); fx.arc(W / 2, FY + FH / 2, 330, -Math.PI / 2, -Math.PI / 2 + ak * Math.PI * 2); fx.stroke();
+      const a = -Math.PI / 2 + ak * Math.PI * 2;
+      if (ak < 1) glowDot(fx, W / 2 + Math.cos(a) * 330, FY + FH / 2 + Math.sin(a) * 330, introA);
+    }
+    // build-up: frame edges flicker brighter toward the drop
+    const bu = prog(t, b(9), DROP);
+    if (bu > 0) {
+      fx.strokeStyle = `rgba(255,210,63,${bu * (.5 + .5 * Math.sin(t * 30)) * introA})`; fx.lineWidth = 5;
+      fx.strokeRect(L, T, FW, FH);
+    }
+  }
+
+  // title block at the bottom (architectural sheet)
+  const tb = easeInOut(prog(t, 4.0, 5.4));
+  if (tb > 0) {
+    fx.strokeStyle = `rgba(225,240,255,${.85 * endFade})`; fx.lineWidth = 2;
+    const tx = 60, ty = 1760, tw = 960, th = 100;
+    partLine(fx, tx + tw, ty, tx, ty, tb); partLine(fx, tx, ty + th, tx + tw, ty + th, tb);
+    partLine(fx, tx, ty, tx, ty + th, tb); partLine(fx, tx + tw, ty, tx + tw, ty + th, tb);
+    partLine(fx, 690, ty, 690, ty + th, tb); partLine(fx, 380, ty, 380, ty + th, tb);
+  }
+
+  // dimension line above the photo: "size of love: infinite"
+  const dk = easeOut(prog(t, b(15), b(16)));
+  if (dk > 0) {
+    const y = 232, a = (1 - prog(t, 19.6, 20.5));
+    fx.strokeStyle = `rgba(255,210,63,${a})`; fx.fillStyle = `rgba(255,210,63,${a})`; fx.lineWidth = 3;
+    const cx = W / 2, half = FW / 2 * dk;
+    fx.beginPath(); fx.moveTo(cx - half, y); fx.lineTo(cx + half, y); fx.stroke();
+    arrow(fx, cx + half, y, 1); arrow(fx, cx - half, y, -1);
+    fx.beginPath(); fx.moveTo(L, y - 22); fx.lineTo(L, y + 22); fx.moveTo(R, y - 22); fx.lineTo(R, y + 22);
+    fx.globalAlpha = dk; fx.stroke(); fx.globalAlpha = 1;
+  }
+
+  // drop: flash + white photo border that pulses with the beat
+  if (after) {
+    const fl = 1 - prog(t, DROP, DROP + .45);
+    if (fl > 0) { fx.fillStyle = `rgba(255,250,235,${.75 * fl * fl})`; fx.fillRect(0, 0, W, H); }
+    const s = 1 + p * .012;
+    fx.save(); fx.translate(W / 2, FY + FH / 2); fx.scale(s, s);
+    fx.strokeStyle = `rgba(255,255,255,${endFade})`; fx.lineWidth = 14;
+    fx.strokeRect(-FW / 2 - 7, -FH / 2 - 7, FW + 14, FH + 14);
+    // yellow corner brackets
+    fx.strokeStyle = `rgba(255,210,63,${endFade})`; fx.lineWidth = 8;
+    const c = 60, hx = FW / 2 + 24, hy = FH / 2 + 24;
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      fx.beginPath(); fx.moveTo(sx * hx, sy * (hy - c)); fx.lineTo(sx * hx, sy * hy); fx.lineTo(sx * (hx - c), sy * hy); fx.stroke();
+    }
+    fx.restore();
+  }
+
+  // underline + ticks under the name, drawn on the beat
+  const uk = easeOut(prog(t, b(15), b(16))) * (1 - prog(t, b(27), b(28)));
+  if (uk > 0) {
+    fx.strokeStyle = `rgba(255,255,255,${uk})`; fx.lineWidth = 3;
+    const y = 1572, half = 230 * uk;
+    fx.beginPath(); fx.moveTo(W / 2 - half, y); fx.lineTo(W / 2 + half, y); fx.stroke();
+    fx.beginPath(); fx.moveTo(W / 2 - half, y - 14); fx.lineTo(W / 2 - half, y + 14);
+    fx.moveTo(W / 2 + half, y - 14); fx.lineTo(W / 2 + half, y + 14); fx.stroke();
+  }
+
+  // confetti
+  for (const c of rain) {
+    const age = t - c.t0; if (age < 0) continue;
+    const y = -30 + c.vy * age; if (y > H + 30) continue;
+    fx.save(); fx.globalAlpha = .85 * endFade;
+    fx.translate(c.x + Math.sin(c.ph + age * 2) * c.sway, y); fx.rotate(c.spin * age);
+    fx.scale(1, Math.cos(c.ph + age * 5)); fx.fillStyle = c.c; fx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+    fx.restore();
+  }
+  confetti(fx, burst1, DROP, W / 2, FY + FH * .55, t);
+  confetti(fx, burst2L, WISH, 120, 1500, t);
+  confetti(fx, burst2R, WISH, W - 120, 1500, t);
+  fx.globalAlpha = 1;
+}
+
+// ---------- timeline ----------
+const $ = id => document.getElementById(id);
+const frame = $('frame'), photo = $('photo'), stage = $('stage');
+
+function renderAt(t) {
+  drawBg(t);
+
+  // intro text inside the empty frame
+  show($('date'), t, 1.4, 2.2, 6.0, 6.6);
+  show($('title'), t, 2.0, 3.0, 6.0, 6.6, { dy: 60, scale: .82 });
+  show($('c1'), t, 4.8, 5.5, 19.6, 20.5, { dy: 12, blur: 4 });
+  show($('c2'), t, 5.1, 5.8, 19.6, 20.5, { dy: 12, blur: 4 });
+  show($('c3'), t, 5.4, 6.1, 19.6, 20.5, { dy: 12, blur: 4 });
+
+  // photo reveal on the drop: circular wipe from the centre, slow zoom afterwards
+  const rv = easeOut(prog(t, DROP - .03, DROP + .4));
+  frame.style.opacity = rv > 0 ? 1 - prog(t, 19.6, 20.5) : 0;
+  frame.style.clipPath = `circle(${rv * 75}% at 50% 50%)`;
+  const s = (1 + p0(t)) * lerp(1.18, 1.0, easeOut(prog(t, DROP, DROP + 1.2))) * (1 + .04 * prog(t, DROP + 1.2, DURATION));
+  photo.style.transform = `scale(${s})`;
+  frame.style.transform = `scale(${1 + pulse(t) * .012})`;
+
+  // name and lines, on the beat
+  show($('name'), t, b(14), b(15), b(27), b(28), { dy: 80, scale: .4, blur: 16, back: true });
+  $('name').style.transform += ` scale(${1 + pulse(t) * .04})`;
+  show($('dimlbl'), t, b(15) + .2, b(16), 19.6, 20.5, { dy: 14, blur: 6 });
+  show($('l1'), t, b(17), b(18), b(20.5), b(21), { dy: 30 });
+  show($('l2'), t, b(21), b(22), b(27), b(28), { dy: 30 });
+
+  // finale
+  show($('wish'), t, WISH - .05, WISH + .45, 19.6, 20.5, { dy: 0, scale: .3, blur: 20, back: true });
+  $('wish').style.transform += ` scale(${1 + pulse(t) * .035})`;
+  show($('sign'), t, b(31), b(32), 19.6, 20.5, { dy: 20 });
+
+  drawFx(t);
+  stage.style.filter = `brightness(${1 - .85 * prog(t, 19.9, 20.5)})`;
+}
+// small extra zoom kick on the drop itself
+function p0(t) { return t > DROP ? .05 * Math.exp(-(t - DROP) * 5) : 0; }
+
+window.renderAt = renderAt;
+window.DURATION = DURATION;
+window.AUDIO = 'assets/music.mp3';
+
+function fit() {
+  const s = RENDER ? 1 : Math.min(innerWidth / W, innerHeight / H);
+  stage.style.transform = `scale(${s})`;
+}
+addEventListener('resize', fit); fit();
+
+window.ready = Promise.all([document.fonts.ready, photo.decode().catch(() => {})]).then(() => {
+  renderAt(0);
+  if (RENDER) return;
+  const audio = $('music');
+  let start = performance.now();
+  const play = () => { start = performance.now(); audio.currentTime = 0; audio.play().catch(() => {}); };
+  $('replay').onclick = play;
+  (function loop(now) {
+    const t = audio.paused ? (now - start) / 1000 : audio.currentTime;
+    if (t >= DURATION) audio.pause();
+    renderAt(Math.min(t, DURATION));
+    requestAnimationFrame(loop);
+  })(performance.now());
+});
+</script>
+</body>
+</html>
