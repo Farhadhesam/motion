@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>روز دختر مبارک پریا</title>
+<style>
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Light.woff2) format("woff2"); font-weight: 300; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Regular.woff2) format("woff2"); font-weight: 400; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Bold.woff2) format("woff2"); font-weight: 700; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Black.woff2) format("woff2"); font-weight: 900; }
+
+  :root { --W: 1080px; --H: 1920px; }
+  html, body { margin: 0; height: 100%; background: #12061a; overflow: hidden; }
+  body { display: grid; place-items: center; font-family: Vazirmatn, sans-serif; }
+
+  #stage {
+    position: relative; width: var(--W); height: var(--H); overflow: hidden;
+    transform-origin: center center; color: #fff;
+  }
+  canvas { position: absolute; inset: 0; }
+  .t {
+    position: absolute; left: 0; right: 0; text-align: center; white-space: nowrap;
+    opacity: 0; will-change: transform, opacity, filter;
+  }
+  #date   { top: 640px;  font-size: 64px;  font-weight: 300; letter-spacing: 2px; color: #ffd9e6; }
+  #title  { top: 760px;  font-size: 128px; font-weight: 900; line-height: 1.3;
+            text-shadow: 0 0 40px rgba(255,160,200,.55); }
+  #name   { top: 700px;  font-size: 330px; font-weight: 900; line-height: 1.2;
+            background: linear-gradient(180deg, #fff6d8 0%, #ffd27a 45%, #ff9cc2 100%);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+            filter: drop-shadow(0 0 30px rgba(255,190,120,.6)); }
+  #sub    { top: 1140px; font-size: 64px;  font-weight: 400; color: #ffe3ef; }
+  #l1     { top: 980px;  font-size: 76px;  font-weight: 700; line-height: 1.6; }
+  #l2     { top: 1120px; font-size: 76px;  font-weight: 700; line-height: 1.6; color: #ffd27a; }
+  #wish   { top: 760px;  font-size: 150px; font-weight: 900; line-height: 1.3;
+            text-shadow: 0 0 50px rgba(255,140,190,.7); }
+  #sign   { top: 1040px; font-size: 60px;  font-weight: 300; color: #ffe3ef; }
+  #foot   { top: 1700px; font-size: 44px;  font-weight: 300; color: rgba(255,230,240,.75); }
+
+  #controls { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    font: 14px system-ui, sans-serif; color: #fff; opacity: .6; }
+  #controls button { font: inherit; padding: 6px 14px; border-radius: 999px; border: 1px solid #fff6;
+    background: #0006; color: #fff; cursor: pointer; }
+  .render #controls { display: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="bg" width="1080" height="1920"></canvas>
+  <div class="t" id="date">۱۹ مهر</div>
+  <div class="t" id="title">روز جهانی دختر</div>
+  <div class="t" id="name">پریا</div>
+  <div class="t" id="sub">پریِ قصه‌های من</div>
+  <div class="t" id="l1">تو دلیلِ لبخندِ هر روزِ منی</div>
+  <div class="t" id="l2">همیشه بدرخش، دخترم</div>
+  <div class="t" id="wish">روزت مبارک</div>
+  <div class="t" id="sign">با یک دنیا عشق</div>
+  <div class="t" id="foot">۱۹ مهر ۱۴۰۵</div>
+  <canvas id="fx" width="1080" height="1920"></canvas>
+</div>
+<div id="controls"><button id="replay">پخش دوباره</button></div>
+
+<script>
+const DURATION = 15;
+const W = 1080, H = 1920;
+const RENDER = new URLSearchParams(location.search).has('render');
+if (RENDER) document.documentElement.classList.add('render');
+
+// ---------- helpers ----------
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const easeOut = k => 1 - Math.pow(1 - k, 3);
+const easeInOut = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const easeBack = k => { const c = 1.7; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+function rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
+const mix = (c1, c2, k) => c1.map((v, i) => Math.round(lerp(v, c2[i], k)));
+const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+
+// in/out envelope for a text element
+function show(el, t, inA, inB, outA, outB, { dy = 40, scale = .92, blur = 14 } = {}) {
+  const i = easeOut(prog(t, inA, inB));
+  const o = outA == null ? 0 : easeInOut(prog(t, outA, outB));
+  const a = i * (1 - o);
+  el.style.opacity = a;
+  const y = (1 - i) * dy - o * dy * .6;
+  const s = lerp(scale, 1, i) * (1 + o * .06);
+  el.style.transform = `translateY(${y}px) scale(${s})`;
+  el.style.filter = `blur(${(1 - i) * blur + o * blur}px)`;
+  return a;
+}
+
+// ---------- particle sets (deterministic) ----------
+const r = rng(19);
+const stars = Array.from({ length: 140 }, () => ({
+  x: r() * W, y: r() * H, s: .6 + r() * 2.4, sp: 15 + r() * 45, ph: r() * 6.28, tw: 1 + r() * 3,
+}));
+const bokeh = Array.from({ length: 14 }, () => ({
+  x: r() * W, y: r() * H, rad: 80 + r() * 200, sp: 8 + r() * 20, hue: r() < .5 ? 330 : 40, a: .05 + r() * .08,
+}));
+// hearts rising softly in the name and wish scenes
+const floaters = Array.from({ length: 34 }, () => ({
+  x: 60 + r() * (W - 120), t0: 4 + r() * 11, s: 18 + r() * 34, sp: 140 + r() * 160, sway: 20 + r() * 40, ph: r() * 6.28,
+  c: r() < .5 ? '#ff8fb8' : (r() < .5 ? '#ffd27a' : '#ffc2d9'),
+}));
+// burst of hearts and sparks behind "روزت مبارک"
+const burst = Array.from({ length: 70 }, () => {
+  const ang = r() * Math.PI * 2, v = 300 + r() * 700;
+  return { vx: Math.cos(ang) * v, vy: Math.sin(ang) * v - 250, s: 10 + r() * 26, heart: r() < .55,
+           c: ['#ff8fb8', '#ffd27a', '#fff2f7', '#ffb3cf'][Math.floor(r() * 4)], spin: r() * 6 - 3 };
+});
+const BURST_T = 11.2, BURST_X = W / 2, BURST_Y = 870;
+
+// the fairy wand: a glowing point sweeping in an arc before the name appears
+const WAND_A = 3.4, WAND_B = 5.0;
+function wandPos(k) {
+  // cubic bezier from bottom-right to the name's centre
+  const p0 = [W + 80, 1450], p1 = [W * .85, 500], p2 = [W * .1, 600], p3 = [W / 2, 930];
+  const u = 1 - k;
+  return [0, 1].map(i => u*u*u*p0[i] + 3*u*u*k*p1[i] + 3*u*k*k*p2[i] + k*k*k*p3[i]);
+}
+const trail = (() => {
+  const rr = rng(7), list = [];
+  for (let te = WAND_A; te <= WAND_B; te += 1 / 90) {
+    for (let j = 0; j < 2; j++) list.push({ te, k: easeInOut(prog(te, WAND_A, WAND_B)),
+      vx: (rr() - .5) * 120, vy: -40 + rr() * 140, s: 2 + rr() * 5, life: .8 + rr() * .9,
+      c: rr() < .6 ? '#ffe7a8' : '#ffc2dc' });
+  }
+  return list;
+})();
+
+// ---------- drawing ----------
+const bg = document.getElementById('bg').getContext('2d');
+const fx = document.getElementById('fx').getContext('2d');
+
+function heart(ctx, x, y, s, rot = 0) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(s / 32, s / 32);
+  ctx.beginPath();
+  ctx.moveTo(0, 10);
+  ctx.bezierCurveTo(-26, -8, -14, -30, 0, -16);
+  ctx.bezierCurveTo(14, -30, 26, -8, 0, 10);
+  ctx.closePath(); ctx.fill(); ctx.restore();
+}
+function sparkle(ctx, x, y, s) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - s * 2.2); ctx.quadraticCurveTo(x, y, x + s * 2.2, y);
+  ctx.quadraticCurveTo(x, y, x, y + s * 2.2); ctx.quadraticCurveTo(x, y, x - s * 2.2, y);
+  ctx.quadraticCurveTo(x, y, x, y - s * 2.2); ctx.fill();
+}
+
+function drawBg(t) {
+  const k = easeInOut(prog(t, 0, DURATION));
+  const top = mix([24, 8, 44], [70, 22, 82], k);
+  const mid = mix([74, 26, 96], [150, 50, 120], k);
+  const bot = mix([140, 50, 110], [244, 140, 160], k);
+  const g = bg.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, rgb(top)); g.addColorStop(.55, rgb(mid)); g.addColorStop(1, rgb(bot));
+  bg.fillStyle = g; bg.fillRect(0, 0, W, H);
+
+  // soft glow behind the centre text
+  const glow = bg.createRadialGradient(W / 2, 900, 0, W / 2, 900, 700);
+  glow.addColorStop(0, `rgba(255,200,220,${.18 + .12 * Math.sin(t * 1.3)})`);
+  glow.addColorStop(1, 'rgba(255,200,220,0)');
+  bg.fillStyle = glow; bg.fillRect(0, 0, W, H);
+
+  for (const b of bokeh) {
+    const y = ((b.y - b.sp * t) % (H + 400) + H + 400) % (H + 400) - 200;
+    const rg = bg.createRadialGradient(b.x, y, 0, b.x, y, b.rad);
+    rg.addColorStop(0, `hsla(${b.hue},90%,80%,${b.a})`); rg.addColorStop(1, `hsla(${b.hue},90%,80%,0)`);
+    bg.fillStyle = rg; bg.fillRect(b.x - b.rad, y - b.rad, b.rad * 2, b.rad * 2);
+  }
+
+  for (const s of stars) {
+    const y = ((s.y - s.sp * t) % H + H) % H;
+    const a = .35 + .65 * Math.abs(Math.sin(s.ph + t * s.tw));
+    bg.fillStyle = `rgba(255,240,250,${a})`;
+    if (s.s > 2.3) sparkle(bg, s.x, y, s.s * .9);
+    else { bg.beginPath(); bg.arc(s.x, y, s.s, 0, 6.283); bg.fill(); }
+  }
+  // burst
+  const ba = t - BURST_T;
+  if (ba > 0 && ba < 3) {
+    const drag = (1 - Math.exp(-2.2 * ba)) / 2.2;
+    for (const p of burst) {
+      const x = BURST_X + p.vx * drag, y = BURST_Y + p.vy * drag + 180 * ba * ba;
+      bg.globalAlpha = clamp(1 - ba / 2.6); bg.fillStyle = p.c;
+      if (p.heart) heart(bg, x, y, p.s, p.spin * ba); else sparkle(bg, x, y, p.s * .3);
+    }
+  }
+  bg.globalAlpha = 1;
+}
+
+function drawFx(t) {
+  fx.clearRect(0, 0, W, H);
+  fx.globalCompositeOperation = 'lighter';
+
+  // wand trail
+  for (const p of trail) {
+    const age = t - p.te;
+    if (age < 0 || age > p.life) continue;
+    const [x0, y0] = wandPos(p.k);
+    const x = x0 + p.vx * age, y = y0 + p.vy * age + 160 * age * age;
+    fx.globalAlpha = 1 - age / p.life; fx.fillStyle = p.c;
+    sparkle(fx, x, y, p.s * (1 - age / p.life * .5));
+  }
+  // wand head
+  if (t >= WAND_A && t <= WAND_B + .35) {
+    const [x, y] = wandPos(easeInOut(prog(t, WAND_A, WAND_B)));
+    const a = 1 - prog(t, WAND_B, WAND_B + .35);
+    const rg = fx.createRadialGradient(x, y, 0, x, y, 70);
+    rg.addColorStop(0, `rgba(255,250,230,${a})`); rg.addColorStop(1, 'rgba(255,220,180,0)');
+    fx.globalAlpha = 1; fx.fillStyle = rg; fx.fillRect(x - 70, y - 70, 140, 140);
+    fx.fillStyle = `rgba(255,255,255,${a})`; sparkle(fx, x, y, 12);
+  }
+  // flash when the name lands
+  const fl = 1 - prog(t, WAND_B, WAND_B + .6);
+  if (t >= WAND_B && fl > 0) {
+    const rg = fx.createRadialGradient(W / 2, 930, 0, W / 2, 930, 600);
+    rg.addColorStop(0, `rgba(255,235,210,${.55 * fl})`); rg.addColorStop(1, 'rgba(255,235,210,0)');
+    fx.globalAlpha = 1; fx.fillStyle = rg; fx.fillRect(0, 300, W, 1260);
+  }
+
+  fx.globalCompositeOperation = 'source-over';
+  // floating hearts
+  for (const h of floaters) {
+    const age = t - h.t0;
+    if (age < 0) continue;
+    const y = H + 60 - h.sp * age;
+    if (y < -60) continue;
+    fx.globalAlpha = clamp(age * 2) * .75 * clamp((y + 60) / 400);
+    fx.fillStyle = h.c;
+    heart(fx, h.x + Math.sin(h.ph + age * 1.6) * h.sway, y, h.s, Math.sin(h.ph + age) * .25);
+  }
+  fx.globalAlpha = 1;
+}
+
+// ---------- timeline ----------
+const $ = id => document.getElementById(id);
+const el = { date: $('date'), title: $('title'), name: $('name'), sub: $('sub'), l1: $('l1'),
+             l2: $('l2'), wish: $('wish'), sign: $('sign'), foot: $('foot') };
+
+function renderAt(t) {
+  drawBg(t);
+
+  // scene 1: date + title
+  show(el.date, t, .3, 1.2, 3.0, 3.5);
+  show(el.title, t, .8, 1.9, 3.0, 3.5, { dy: 60, scale: .85 });
+
+  // scene 2: the name, revealed by the wand, then lifts up for the message
+  {
+    const i = easeBack(prog(t, WAND_B - .05, WAND_B + .7));
+    const lift = easeInOut(prog(t, 7.6, 8.4));
+    const out = easeInOut(prog(t, 10.6, 11.1));
+    const a = clamp(prog(t, WAND_B - .05, WAND_B + .25)) * (1 - out);
+    const breathe = 1 + .015 * Math.sin(t * 2.4);
+    el.name.style.opacity = a;
+    el.name.style.transform = `translateY(${-lift * 330}px) scale(${lerp(.4, 1, i) * lerp(1, .72, lift) * breathe})`;
+    el.name.style.filter = `drop-shadow(0 0 ${30 + 15 * Math.sin(t * 3)}px rgba(255,190,120,.6)) blur(${out * 12}px)`;
+  }
+  show(el.sub, t, 5.6, 6.4, 7.4, 7.8);
+
+  // scene 3: message
+  show(el.l1, t, 8.2, 9.0, 10.6, 11.1);
+  show(el.l2, t, 9.0, 9.8, 10.6, 11.1);
+
+  // scene 4: wish + signature
+  show(el.wish, t, BURST_T - .1, BURST_T + .6, 14.4, 15, { dy: 0, scale: .6, blur: 20 });
+  show(el.sign, t, 12.2, 13.0, 14.4, 15);
+  show(el.foot, t, 12.6, 13.4, 14.4, 15, { dy: 20 });
+
+  drawFx(t);
+}
+window.renderAt = renderAt;
+window.DURATION = DURATION;
+
+// ---------- preview: fit to window and loop ----------
+function fit() {
+  const s = Math.min(innerWidth / W, innerHeight / H);
+  $('stage').style.transform = RENDER ? 'none' : `scale(${s})`;
+}
+addEventListener('resize', fit); fit();
+
+window.ready = document.fonts.ready.then(() => {
+  renderAt(0);
+  if (RENDER) return;
+  let start = performance.now();
+  $('replay').onclick = () => { start = performance.now(); };
+  (function loop(now) {
+    renderAt(Math.min((now - start) / 1000, DURATION));
+    requestAnimationFrame(loop);
+  })(performance.now());
+});
+</script>
+</body>
+</html>
