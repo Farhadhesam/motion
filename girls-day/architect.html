@@ -21,15 +21,12 @@
   #frame img { width: 100%; height: 100%; object-fit: cover; display: block; transform-origin: 50% 40%; }
 
   .t { position: absolute; left: 0; right: 0; text-align: center; white-space: nowrap; opacity: 0; }
-  #date   { top: 640px;  font-size: 60px;  font-weight: 300; color: #cfe6ff; letter-spacing: 1px; }
-  #title  { top: 730px;  font-size: 112px; font-weight: 900; line-height: 1.35; }
   #name   { top: 1318px; font-size: 200px; font-weight: 900; line-height: 1.25; color: #ffd23f;
             text-shadow: 7px 7px 0 #e63946, 0 0 40px rgba(255,210,63,.35); }
   #l1     { top: 1590px; font-size: 58px;  font-weight: 700; line-height: 1.5; }
   #l2     { top: 1590px; font-size: 64px;  font-weight: 700; line-height: 1.5; color: #ffd23f; }
   #wish   { top: 1340px; font-size: 150px; font-weight: 900; line-height: 1.35; color: #fff;
             text-shadow: 7px 7px 0 #e63946; }
-  #sign   { top: 1585px; font-size: 56px;  font-weight: 400; color: #ffd23f; }
   #dimlbl { top: 162px;  font-size: 38px;  font-weight: 700; color: #ffd23f; }
   .cell { position: absolute; top: 1786px; font-size: 30px; font-weight: 400; color: #cfe6ff;
           text-align: center; opacity: 0; white-space: nowrap; }
@@ -45,17 +42,14 @@
 <div id="stage">
   <canvas id="bg" width="1080" height="1920"></canvas>
   <div id="frame"><img id="photo" src="assets/pariya.jpg" alt=""></div>
-  <div class="t" id="date">۱۹ مهر</div>
-  <div class="t" id="title">روز جهانی دختر</div>
   <div class="t" id="dimlbl">اندازه‌ی عشق: بی‌نهایت</div>
   <div class="t" id="name">پریا</div>
   <div class="t" id="l1">طراحِ زیباترین لحظه‌های زندگیِ ما</div>
   <div class="t" id="l2">همیشه بدرخش، دخترم</div>
   <div class="t" id="wish">روزت مبارک</div>
-  <div class="t" id="sign">با عشق</div>
-  <div class="cell" id="c1" style="left:700px;width:300px">پروژه: <b>پریا</b></div>
-  <div class="cell" id="c2" style="left:390px;width:300px">مقیاس: <b>۱:۱</b></div>
-  <div class="cell" id="c3" style="left:80px;width:300px">تاریخ: <b>۱۹ مهر ۱۴۰۵</b></div>
+  <div class="cell" id="c1" style="left:620px;width:400px">پروژه: <b>روز جهانی دختر</b></div>
+  <div class="cell" id="c2" style="left:340px;width:280px">مقیاس: <b>۱:۱</b></div>
+  <div class="cell" id="c3" style="left:60px;width:280px">تاریخ: <b>۱۹ مهر ۱۴۰۵</b></div>
   <canvas id="fx" width="1080" height="1920"></canvas>
 </div>
 <div id="controls"><button id="replay">پخش دوباره</button></div>
@@ -154,6 +148,125 @@ function confetti(ctx, list, t0, ox, oy, t) {
   }
 }
 
+
+// ---------- floor plans drawn inside the empty frame ----------
+// units: 1 = 10px, origin at the frame's inner top-left; plan area 68 x 91
+// W exterior wall, w interior wall, r rect, c circle, d door (hinge x,y, radius, from°, to°),
+// l thin line, s stairs (x1,y1,x2,y2,treads), t label
+const PLANS = [
+  { title: 'پلان طبقه همکف', a: 1.2, b: 3.0, out: 3.3, items: [
+    ['W', 0, 0, 68, 0], ['W', 68, 0, 68, 91], ['W', 68, 91, 58, 91], ['W', 49, 91, 0, 91], ['W', 0, 91, 0, 0],
+    ['w', 0, 40, 24, 40], ['w', 31, 40, 38, 40], ['w', 45, 40, 68, 40], ['w', 34, 0, 34, 40],
+    ['w', 20, 40, 20, 44], ['w', 20, 51, 20, 58], ['w', 0, 58, 20, 58], ['w', 42, 66, 42, 91],
+    ['d', 24, 40, 7, 0, -90], ['d', 45, 40, 7, 180, 270], ['d', 20, 44, 7, 90, 0], ['d', 58, 91, 9, 180, 270],
+    ['r', 5, 8, 21, 28], ['r', 7, 9, 12, 13], ['r', 14, 9, 19, 13], ['r', 26, 2, 32, 18],
+    ['r', 47, 8, 63, 28], ['r', 49, 9, 54, 13], ['r', 56, 9, 61, 13], ['r', 36, 2, 42, 18],
+    ['r', 2, 42, 7, 56], ['c', 14, 54, 2], ['r', 12, 42, 18, 46],
+    ['r', 3, 66, 8, 88], ['r', 8, 83, 22, 88], ['r', 12, 70, 20, 78], ['c', 32, 80, 5],
+    ['r', 62, 60, 67, 90], ['r', 46, 60, 61, 64], ['c', 64.5, 66, 1.5], ['c', 64.5, 71, 1.5],
+    ['t', 13, 33, 'خواب'], ['t', 55, 33, 'خواب'], ['t', 13, 49, 'سرویس'], ['t', 24, 64, 'پذیرایی'], ['t', 53, 74, 'آشپزخانه'],
+  ] },
+  { title: 'پلان طبقه اول', a: 3.4, b: 5.0, out: 5.2, items: [
+    ['W', 0, 0, 68, 0], ['W', 68, 0, 68, 91], ['W', 68, 91, 0, 91], ['W', 0, 91, 0, 0],
+    ['w', 30, 0, 30, 38], ['w', 30, 45, 30, 50], ['w', 0, 50, 8, 50], ['w', 15, 50, 46, 50], ['w', 53, 50, 68, 50],
+    ['w', 0, 25, 22, 25], ['w', 52, 0, 52, 20], ['w', 52, 20, 56, 20], ['w', 62, 20, 68, 20],
+    ['d', 8, 50, 7, 0, -90], ['d', 46, 50, 7, 0, -90], ['d', 30, 38, 7, 90, 180], ['d', 22, 25, 7, 180, 90], ['d', 56, 20, 6, 0, 90],
+    ['r', 2, 2, 18, 7], ['c', 10, 10, 2.2], ['r', 3, 29, 13, 45], ['r', 4, 30, 12, 33],
+    ['r', 34, 4, 50, 22], ['r', 35, 5, 41, 9], ['r', 43, 5, 49, 9], ['r', 60, 2, 66, 8], ['l', 60, 2, 66, 8], ['c', 56, 4, 2],
+    ['s', 32, 70, 40, 91, 9], ['r', 44, 62, 60, 68], ['r', 63, 55, 68, 85],
+    ['r', 4, 56, 24, 62], ['r', 4, 62, 9, 72], ['r', 10, 76, 26, 84], ['c', 12, 73, 1.5], ['c', 24, 73, 1.5], ['c', 12, 87, 1.5], ['c', 24, 87, 1.5],
+    ['t', 15, 18, 'مطالعه'], ['t', 19, 37, 'خواب'], ['t', 41, 30, 'خواب مستر'], ['t', 18, 67, 'نشیمن'], ['t', 52, 78, 'آشپزخانه'],
+  ] },
+  { title: 'پلان طبقه دوم', a: 5.3, b: 6.6, out: null, items: [
+    ['W', 0, 0, 68, 0], ['W', 68, 0, 68, 80], ['W', 68, 80, 48, 80], ['W', 20, 80, 0, 80], ['W', 0, 80, 0, 0],
+    ['l', 20, 80, 36, 80], ['l', 32, 79, 48, 79], ['l', 8, 80, 8, 91], ['l', 8, 91, 60, 91], ['l', 60, 91, 60, 80],
+    ['w', 0, 36, 10, 36], ['w', 17, 36, 58, 36], ['w', 65, 36, 68, 36], ['w', 40, 0, 40, 6], ['w', 40, 13, 40, 36], ['w', 40, 20, 68, 20],
+    ['d', 10, 36, 7, 0, -90], ['d', 40, 6, 7, 90, 0], ['d', 65, 36, 7, 180, 270],
+    ['r', 6, 6, 24, 26], ['r', 8, 7, 14, 11], ['r', 16, 7, 22, 11], ['r', 2, 6, 5, 10], ['r', 25, 6, 28, 10], ['r', 30, 2, 38, 20], ['l', 30, 2, 38, 20],
+    ['r', 52, 2, 66, 9], ['c', 46, 16, 2], ['r', 60, 13, 66, 18],
+    ['r', 42, 21, 66, 25], ['c', 46, 23, 1.3], ['c', 50, 23, 1.3],
+    ['r', 8, 40, 26, 42], ['r', 4, 58, 28, 66], ['r', 10, 50, 22, 56], ['c', 48, 58, 6], ['c', 48, 49, 1.5], ['c', 48, 67, 1.5], ['c', 39, 58, 1.5], ['c', 57, 58, 1.5],
+    ['c', 63, 74, 3], ['c', 4, 74, 2.5],
+    ['t', 20, 31, 'خواب'], ['t', 53, 15, 'حمام'], ['t', 50, 30, 'آشپزخانه'], ['t', 18, 72, 'نشیمن'], ['t', 34, 87, 'بالکن'],
+  ] },
+];
+const PX = FX + 40, PY = FY + 46, U = 10;
+
+function itemLen(it) { return it[0] === 't' ? 1 : 1; }
+function drawItem(ctx, it, f) {
+  const P = (x, y) => [PX + x * U, PY + y * U];
+  const [k] = it;
+  if (k === 'W' || k === 'w' || k === 'l') {
+    ctx.lineWidth = k === 'W' ? 9 : k === 'w' ? 5 : 2;
+    ctx.lineCap = k === 'l' ? 'butt' : 'square';
+    partLine(ctx, ...P(it[1], it[2]), ...P(it[3], it[4]), f);
+  } else if (k === 'r' || k === 's') {
+    ctx.lineWidth = 2;
+    const [x1, y1] = P(it[1], it[2]), [x2, y2] = P(it[3], it[4]);
+    const pts = [[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]];
+    const per = 2 * (Math.abs(x2 - x1) + Math.abs(y2 - y1));
+    let left = per * f;
+    ctx.beginPath(); ctx.moveTo(x1, y1);
+    for (let i = 1; i < 5 && left > 0; i++) {
+      const [ax, ay] = pts[i - 1], [bx, by] = pts[i], len = Math.hypot(bx - ax, by - ay), q = Math.min(1, left / len);
+      ctx.lineTo(lerp(ax, bx, q), lerp(ay, by, q)); left -= len;
+    }
+    ctx.stroke();
+    if (k === 's') {
+      const n = it[5];
+      for (let i = 1; i < n; i++) {
+        if (f < i / n) break;
+        const y = lerp(y1, y2, i / n);
+        ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+      }
+    }
+  } else if (k === 'c') {
+    ctx.lineWidth = 2;
+    const [x, y] = P(it[1], it[2]);
+    ctx.beginPath(); ctx.arc(x, y, it[3] * U, 0, 6.283 * f); ctx.stroke();
+  } else if (k === 'd') {
+    const [hx, hy] = P(it[1], it[2]), R = it[3] * U;
+    const a0 = it[4] * Math.PI / 180, a1 = it[5] * Math.PI / 180;
+    const a = lerp(a0, a1, f);
+    ctx.lineWidth = 1.5; ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.arc(hx, hy, R, Math.min(a0, a), Math.max(a0, a)); ctx.stroke();
+    ctx.setLineDash([]); ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.cos(a) * R, hy + Math.sin(a) * R); ctx.stroke();
+  } else if (k === 't') {
+    const [x, y] = P(it[1], it[2]);
+    ctx.save(); ctx.globalAlpha *= f; ctx.fillStyle = '#ffd23f';
+    ctx.font = '700 24px Vazirmatn'; ctx.textAlign = 'center'; ctx.direction = 'rtl'; ctx.textBaseline = 'middle';
+    ctx.fillText(it[3], x, y); ctx.restore();
+  }
+}
+
+function drawPlans(ctx, t) {
+  if (t > DROP + .5) return;
+  for (const plan of PLANS) {
+    const k = prog(t, plan.a, plan.b);
+    if (k <= 0) continue;
+    const alpha = plan.out == null ? 1 : 1 - prog(t, plan.out, plan.out + .3);
+    if (alpha <= 0) continue;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = 'rgba(235,245,255,.92)';
+    const n = plan.items.length, span = 4;
+    let head = null;
+    plan.items.forEach((it, i) => {
+      const f = clamp((k * (n + span) - i) / span);
+      if (f <= 0) return;
+      drawItem(ctx, it, easeInOut(f));
+      if (f < 1 && it[0] !== 't' && !head) head = [PX + it[1] * U, PY + it[2] * U];
+    });
+    // plan title at the bottom of the frame
+    ctx.globalAlpha = alpha * clamp(k * 3);
+    ctx.fillStyle = '#cfe6ff'; ctx.font = '400 28px Vazirmatn'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
+    ctx.fillText(plan.title, W / 2, FY + FH - 4);
+    ctx.restore();
+    if (head) glowDot(ctx, ...head, .8 * alpha);
+  }
+}
+
 // ---------- background: blueprint ----------
 const bg = document.getElementById('bg').getContext('2d');
 const fx = document.getElementById('fx').getContext('2d');
@@ -179,6 +292,8 @@ function drawBg(t) {
     bg.strokeStyle = `rgba(160,205,255,${(major ? .22 : .08) + (major ? p * .12 : 0)})`;
     bg.beginPath(); bg.moveTo(0, y + .5); bg.lineTo(W, y + .5); bg.stroke();
   }
+
+  drawPlans(bg, t);
 
   // floating outline shapes (circle / triangle / square), bouncing with the beat after the drop
   const sa = prog(t, DROP - .1, DROP + .8) * (1 - prog(t, 19.6, 20.5));
@@ -209,7 +324,7 @@ function drawFx(t) {
   const edges = [
     [R + O, T, L - O, T], [L, T - O, L, B + O], [L - O, B, R + O, B], [R, B + O, R, T - O],
   ];
-  const drawA = .5, drawB = 3.2;
+  const drawA = .3, drawB = 1.9;
   const after = t > DROP;
   fx.strokeStyle = after ? `rgba(255,255,255,${.55 * endFade})` : 'rgba(225,240,255,.9)';
   fx.lineWidth = after ? 2 : 3;
@@ -222,20 +337,8 @@ function drawFx(t) {
   });
   if (head) glowDot(fx, ...head);
 
-  // compass arc + diagonals inside the empty frame (intro only)
   const introA = 1 - prog(t, DROP - .5, DROP);
   if (introA > 0) {
-    fx.strokeStyle = `rgba(200,225,255,${.35 * introA})`; fx.lineWidth = 2;
-    fx.setLineDash([10, 10]);
-    partLine(fx, L, T, R, B, easeInOut(prog(t, 3.0, 3.9)));
-    partLine(fx, R, T, L, B, easeInOut(prog(t, 3.3, 4.2)));
-    fx.setLineDash([]);
-    const ak = easeInOut(prog(t, 3.6, 5.0));
-    if (ak > 0) {
-      fx.beginPath(); fx.arc(W / 2, FY + FH / 2, 330, -Math.PI / 2, -Math.PI / 2 + ak * Math.PI * 2); fx.stroke();
-      const a = -Math.PI / 2 + ak * Math.PI * 2;
-      if (ak < 1) glowDot(fx, W / 2 + Math.cos(a) * 330, FY + FH / 2 + Math.sin(a) * 330, introA);
-    }
     // build-up: frame edges flicker brighter toward the drop
     const bu = prog(t, b(9), DROP);
     if (bu > 0) {
@@ -251,7 +354,7 @@ function drawFx(t) {
     const tx = 60, ty = 1760, tw = 960, th = 100;
     partLine(fx, tx + tw, ty, tx, ty, tb); partLine(fx, tx, ty + th, tx + tw, ty + th, tb);
     partLine(fx, tx, ty, tx, ty + th, tb); partLine(fx, tx + tw, ty, tx + tw, ty + th, tb);
-    partLine(fx, 690, ty, 690, ty + th, tb); partLine(fx, 380, ty, 380, ty + th, tb);
+    partLine(fx, 620, ty, 620, ty + th, tb); partLine(fx, 340, ty, 340, ty + th, tb);
   }
 
   // dimension line above the photo: "size of love: infinite"
@@ -316,8 +419,6 @@ function renderAt(t) {
   drawBg(t);
 
   // intro text inside the empty frame
-  show($('date'), t, 1.4, 2.2, 6.0, 6.6);
-  show($('title'), t, 2.0, 3.0, 6.0, 6.6, { dy: 60, scale: .82 });
   show($('c1'), t, 4.8, 5.5, 19.6, 20.5, { dy: 12, blur: 4 });
   show($('c2'), t, 5.1, 5.8, 19.6, 20.5, { dy: 12, blur: 4 });
   show($('c3'), t, 5.4, 6.1, 19.6, 20.5, { dy: 12, blur: 4 });
@@ -340,7 +441,6 @@ function renderAt(t) {
   // finale
   show($('wish'), t, WISH - .05, WISH + .45, 19.6, 20.5, { dy: 0, scale: .3, blur: 20, back: true });
   $('wish').style.transform += ` scale(${1 + pulse(t) * .035})`;
-  show($('sign'), t, b(31), b(32), 19.6, 20.5, { dy: 20 });
 
   drawFx(t);
   stage.style.filter = `brightness(${1 - .85 * prog(t, 19.9, 20.5)})`;
