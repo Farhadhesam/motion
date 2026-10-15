@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>روز پرستار مبارک</title>
+<style>
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Light.woff2) format("woff2"); font-weight: 300; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Regular.woff2) format("woff2"); font-weight: 400; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Bold.woff2) format("woff2"); font-weight: 700; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Black.woff2) format("woff2"); font-weight: 900; }
+
+  html, body { margin: 0; height: 100%; background: #060c17; overflow: hidden; }
+  body { display: grid; place-items: center; font-family: Vazirmatn, sans-serif; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; color: #fff; flex: none; }
+  canvas { position: absolute; inset: 0; }
+  #probe-svg { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+  .t { position: absolute; left: 0; right: 0; text-align: center; white-space: nowrap; opacity: 0;
+       line-height: 1.5; will-change: transform, opacity, filter; }
+  .lead { font-size: 60px; font-weight: 400; color: #cfe3f5; }
+  .main { font-size: 74px; font-weight: 700; color: #f5f7fa; text-shadow: 0 0 28px rgba(61,245,176,.3); }
+  .two1 { top: 1318px; } .two2 { top: 1408px; } .one { top: 1350px; }
+  .warm { color: #ffc46b; text-shadow: 0 0 30px rgba(255,196,107,.45); }
+  .love { color: #ff9aa6; text-shadow: 0 0 30px rgba(255,122,138,.5); }
+  #s4a { color: #ffe2bd; }
+  #s5a { font-size: 62px; }
+  #title { top: 740px; font-size: 132px; font-weight: 900; line-height: 1.3; color: #fff;
+           text-shadow: 0 0 40px rgba(255,122,138,.5), 0 0 90px rgba(61,245,176,.2); }
+  #sub1, #sub2 { font-size: 54px; font-weight: 400; color: #d7e6f3; }
+  #sub1 { top: 1100px; } #sub2 { top: 1182px; }
+  #from { top: 1330px; font-size: 46px; font-weight: 700; color: #3df5b0; text-shadow: 0 0 24px rgba(61,245,176,.4); }
+
+  #controls { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); font: 14px system-ui, sans-serif; }
+  #controls button { font: inherit; padding: 6px 14px; border-radius: 999px; border: 1px solid #fff6;
+    background: #0008; color: #fff; cursor: pointer; }
+  .render #controls { display: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="bg" width="1080" height="1920"></canvas>
+  <canvas id="fx" width="1080" height="1920"></canvas>
+  <div class="t main one" id="s2">وقتی شهر خواب است…</div>
+  <div class="t lead two1" id="s3a">…کسی بیدار است</div>
+  <div class="t main two2" id="s3b">که دستت را رها نمی‌کند.</div>
+  <div class="t lead two1" id="s4a">چراغ شب‌های بیمارستان</div>
+  <div class="t main two2 warm" id="s4b">هنوز روشن است.</div>
+  <div class="t main one" id="s5a">شیفت‌های بلند، چای‌های سردشده…</div>
+  <div class="t lead two1" id="s5b">…و لبخندهایی که خسته‌اند،</div>
+  <div class="t main two2 warm" id="s5c">اما خاموش نمی‌شوند.</div>
+  <div class="t lead two1" id="s6a">هر ضربانی که برمی‌گردد،</div>
+  <div class="t main two2 love" id="s6b">ردّ دستان شما را دارد.</div>
+  <div class="t" id="title">روز پرستار مبارک</div>
+  <div class="t" id="sub1">به پاس شب‌هایی که بیدار ماندید</div>
+  <div class="t" id="sub2">تا ما آرام بخوابیم.</div>
+  <div class="t" id="from"></div>
+</div>
+<svg id="probe-svg"><path id="probe"/></svg>
+<div id="controls"><button id="replay">پخش دوباره</button></div>
+<audio id="music" src="out/music.wav" preload="auto"></audio>
+
+<script>
+const DURATION = 30;
+const W = 1080, H = 1920;
+const params = new URLSearchParams(location.search);
+const RENDER = params.has('render');
+if (RENDER) document.documentElement.classList.add('render');
+const FROM = params.get('from') || '';
+
+// the soundtrack runs at 72 bpm, a resting heart rate; every cue sits on this beat grid
+const BEAT = 60 / 72;
+const b = n => n * BEAT;
+
+// ---------- helpers ----------
+const { PI, sin, cos, exp, hypot, min, max } = Math;
+const clamp = (x, a = 0, c = 1) => min(c, max(a, x));
+const lerp = (a, c, k) => a + (c - a) * k;
+const prog = (t, a, c) => clamp((t - a) / (c - a));
+const easeOut = k => 1 - Math.pow(1 - k, 3);
+const easeIn = k => k * k * k;
+const easeInOut = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const easeSoft = k => k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+const easeBack = k => { const c = 1.8; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+function rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
+const mix = (c1, c2, k) => c1.map((v, i) => lerp(v, c2[i], k));
+const rgba = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
+// 1 at t0, decaying afterwards
+const flash = (t, t0, rate = 6) => (t < t0 ? 0 : exp(-(t - t0) * rate));
+// piecewise-linear keyframes [[t, v], ...]
+function kf(t, keys) {
+  if (t <= keys[0][0]) return keys[0][1];
+  for (let i = 1; i < keys.length; i++)
+    if (t <= keys[i][0]) return lerp(keys[i - 1][1], keys[i][1], (t - keys[i - 1][0]) / (keys[i][0] - keys[i - 1][0]));
+  return keys[keys.length - 1][1];
+}
+
+const GREEN = [61, 245, 176], AMBER = [255, 196, 107], PINK = [255, 122, 138], WHITE = [245, 247, 250], SKY = [150, 200, 255];
+
+// ---------- geometry: every drawing is sampled into polylines the pen can trace ----------
+const probe = document.getElementById('probe');
+function mkStroke(pts) {
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  return { pts, cum, len: cum[cum.length - 1] };
+}
+function sampleD(d, step = 2) {
+  probe.setAttribute('d', d);
+  const L = probe.getTotalLength(), n = max(2, Math.ceil(L / step)), pts = [];
+  for (let i = 0; i <= n; i++) { const p = probe.getPointAtLength(L * i / n); pts.push([p.x, p.y]); }
+  return mkStroke(pts);
+}
+// a tape is the ordered list of strokes one pen draws; the pen lifts between strokes
+function tape(...parts) {
+  const strokes = [];
+  for (const p of parts.flat()) {
+    if (typeof p === 'string') p.split(/(?=M)/).map(s => s.trim()).filter(Boolean).forEach(s => strokes.push(sampleD(s)));
+    else strokes.push(p);
+  }
+  let off = 0;
+  for (const s of strokes) { s.off = off; off += s.len; }
+  return { strokes, len: off, lead: 0 };
+}
+function pointAt(s, d) {
+  const c = s.cum; let lo = 0, hi = c.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (c[m] <= d) lo = m; else hi = m; }
+  const k = clamp((d - c[lo]) / ((c[hi] - c[lo]) || 1));
+  return [lerp(s.pts[lo][0], s.pts[hi][0], k), lerp(s.pts[lo][1], s.pts[hi][1], k), lo, hi];
+}
+function traceTape(ctx, T, from, to) {
+  let head = null;
+  for (const s of T.strokes) {
+    const a = max(from, s.off), z = min(to, s.off + s.len);
+    if (z <= a) continue;
+    const p = pointAt(s, a - s.off), q = pointAt(s, z - s.off);
+    ctx.moveTo(p[0], p[1]);
+    for (let i = p[3]; i <= q[2]; i++) ctx.lineTo(s.pts[i][0], s.pts[i][1]);
+    ctx.lineTo(q[0], q[1]);
+    if (to < s.off + s.len) head = q;
+  }
+  return head;
+}
+function ends(T) {
+  const f = T.strokes[0].pts, l = T.strokes[T.strokes.length - 1].pts;
+  const dir = (a, c) => { const L = hypot(c[0] - a[0], c[1] - a[1]) || 1; return [(c[0] - a[0]) / L, (c[1] - a[1]) / L]; };
+  return { start: f[0], startDir: dir(f[0], f[min(f.length - 1, 4)]), end: l[l.length - 1], endDir: dir(l[max(0, l.length - 5)], l[l.length - 1]) };
+}
+// continue the line: a curve from where the previous drawing ended into the start of the next one
+function joined(prev, T, k = null) {
+  const a = ends(prev), z = ends(T);
+  k = k ?? clamp(hypot(z.start[0] - a.end[0], z.start[1] - a.end[1]) * .45, 80, 420);
+  const c = sampleD(`M ${a.end[0]} ${a.end[1]} C ${a.end[0] + a.endDir[0] * k} ${a.end[1] + a.endDir[1] * k} ` +
+    `${z.start[0] - z.startDir[0] * k} ${z.start[1] - z.startDir[1] * k} ${z.start[0]} ${z.start[1]}`);
+  const out = tape(c, ...T.strokes);
+  out.lead = c.len;
+  return out;
+}
+function circleD(cx, cy, r, a0 = 0, sweep = 1) {
+  const x0 = cx + r * cos(a0), y0 = cy + r * sin(a0), x1 = cx - r * cos(a0), y1 = cy - r * sin(a0);
+  return `M ${x0} ${y0} A ${r} ${r} 0 1 ${sweep} ${x1} ${y1} A ${r} ${r} 0 1 ${sweep} ${x0} ${y0}`;
+}
+// smooth curve through points (Catmull-Rom); join=true continues the current subpath instead of moving
+function crD(P, join = false) {
+  let d = `${join ? 'L' : 'M'} ${P[0][0]} ${P[0][1]}`;
+  const g = i => P[clamp(i, 0, P.length - 1)];
+  for (let i = 0; i < P.length - 1; i++) {
+    const p0 = g(i - 1), p1 = g(i), p2 = g(i + 1), p3 = g(i + 2);
+    d += ` C ${p1[0] + (p2[0] - p0[0]) / 6} ${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6} ${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]} ${p2[1]}`;
+  }
+  return d;
+}
+const polyD = (P, close = false) => 'M ' + P.map(p => `${p[0]} ${p[1]}`).join(' L ') + (close ? ' Z' : '');
+function place(P, { x, y, a, s }) {
+  const c = cos(a), n = sin(a);
+  return P.map(([u, v]) => [x + s * (u * c - v * n), y + s * (u * n + v * c)]);
+}
+// time at which an eased draw over [a, c] reaches distance d of L
+function tAt(d, L, a, c, ease = easeInOut) {
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 28; i++) { const m = (lo + hi) / 2; if (ease(m) * L < d) lo = m; else hi = m; }
+  return lerp(a, c, lo);
+}
+
+// ---------- drawing primitives ----------
+const bg = document.getElementById('bg').getContext('2d');
+const fx = document.getElementById('fx').getContext('2d');
+const occCanvas = document.createElement('canvas'); occCanvas.width = W; occCanvas.height = H;
+const occ = occCanvas.getContext('2d');
+
+function neon(ctx, build, col, { w = 5, glow = 20, a = 1, core = .6 } = {}) {
+  if (a <= 0) return;
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); build(ctx);
+  ctx.globalAlpha = a;
+  ctx.shadowColor = rgba(col, .9); ctx.shadowBlur = glow;
+  ctx.strokeStyle = rgba(col); ctx.lineWidth = w; ctx.stroke();
+  ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+  ctx.strokeStyle = rgba(mix(col, WHITE, .75), core); ctx.lineWidth = w * .36; ctx.stroke();
+  ctx.restore();
+}
+function drawTape(ctx, T, from, to, col, o) {
+  let head = null;
+  if (to > from + .5) neon(ctx, c => { head = traceTape(c, T, from, to); }, col, o);
+  return head;
+}
+const FALLOFF = [0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1].map(k => [k, exp(-4.5 * k * k) * (1 - k)]);
+function glowAt(ctx, x, y, r, col, a) {
+  if (a <= 0) return;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  for (const [k, f] of FALLOFF) g.addColorStop(k, rgba(col, a * f));
+  ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+}
+function headDot(ctx, p, col, a = 1) {
+  if (!p || a <= 0) return;
+  glowAt(ctx, p[0], p[1], 46, col, .55 * a);
+  glowAt(ctx, p[0], p[1], 14, WHITE, a);
+}
+// draw window for a tape: pen moves over [d0, d1], the tail chases it over [e0, e1]
+function run(ctx, T, t, d0, d1, e0, e1, col, o = {}, ease = easeInOut, retract = null) {
+  if (t < d0 || t > e1) return null;
+  const head = ease(prog(t, d0, d1)) * T.len;
+  let tail = easeIn(prog(t, e0, e1)) * T.len;
+  if (retract) tail = max(tail, easeInOut(prog(t, ...retract)) * T.lead);
+  const p = drawTape(ctx, T, tail, head, col, o);
+  if (t < d1) headDot(ctx, p, col, o.a ?? 1);
+  return p;
+}
+
+// ---------- ECG trace ----------
+const QRS = [[-16, 0], [-8, -.08], [0, 1], [9, -.3], [20, 0]];
+function ecgOff(x, beats) {
+  let v = 0;
+  for (const [bx, A] of beats) {
+    const u = x - bx;
+    let q = .1 * exp(-(((u + 62) / 13) ** 2)) + .17 * exp(-(((u - 72) / 22) ** 2));
+    if (u > -16 && u < 20)
+      for (let i = 1; i < QRS.length; i++)
+        if (u <= QRS[i][0]) { q += lerp(QRS[i - 1][1], QRS[i][1], (u - QRS[i - 1][0]) / (QRS[i][0] - QRS[i - 1][0])); break; }
+    v -= A * q;
+  }
+  return v;
+}
+function ecgStroke(x0, x1, y, beats) {
+  const xs = [];
+  for (let x = x0; x < x1; x += 1.5) xs.push(x);
+  xs.push(x1);
+  for (const [bx] of beats) for (const [u] of QRS) xs.push(bx + u);
+  xs.sort((a, c) => a - c);
+  return mkStroke(xs.filter((x, i) => x >= x0 && x <= x1 && (i === 0 || x - xs[i - 1] > .01)).map(x => [x, y + ecgOff(x, beats)]));
+}
+function distAtX(s, x) {
+  const p = s.pts; let lo = 0, hi = p.length - 1;
+  if (x <= p[0][0]) return 0;
+  if (x >= p[hi][0]) return s.len;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (p[m][0] <= x) lo = m; else hi = m; }
+  return lerp(s.cum[lo], s.cum[hi], (x - p[lo][0]) / (p[hi][0] - p[lo][0]));
+}
+
+// =====================================================================
+// scene 1 — "beep": a dot wakes up and draws three slow heartbeats
+// =====================================================================
+const E1 = { y: 960, x0: 90, x1: 960, t0: .45, t1: b(4) - .15, A: 190 };
+const E1V = (E1.x1 - E1.x0) / (E1.t1 - E1.t0);
+const E1_BEATS = [1, 2, 3].map(n => [E1.x0 + E1V * (b(n) - E1.t0), E1.A]);
+const ecg1 = ecgStroke(E1.x0, E1.x1, E1.y, E1_BEATS);
+const T1 = tape(ecg1);
+
+function scene1(t) {
+  if (t > 4.1) return;
+  const a = clamp(t / .35);
+  const xh = lerp(E1.x0, E1.x1, prog(t, E1.t0, E1.t1));
+  const xt = lerp(E1.x0, E1.x1, easeIn(prog(t, E1.t1 + .02, E1.t1 + .8)));
+  for (const [bx, A] of E1_BEATS) {
+    const f = flash(t, E1.t0 + (bx - E1.x0) / E1V, 3.5);
+    if (xt < bx) glowAt(fx, bx, E1.y - A * .55, 170, GREEN, .22 * f);
+  }
+  const head = drawTape(fx, T1, distAtX(ecg1, xt), distAtX(ecg1, xh), GREEN, { a });
+  if (t < E1.t1) headDot(fx, head || [E1.x0, E1.y], GREEN, a * (t < E1.t0 ? .75 + .25 * sin(t * 18) : 1));
+}
+
+// =====================================================================
+// scene 2 — 3 a.m.: a wall clock, the window, the sleeping city
+// =====================================================================
+const CLK = { x: 540, y: 500, r: 130 };
+const ticksD = Array.from({ length: 12 }, (_, i) => {
+  const a = -PI / 2 + i * PI / 6, r0 = i % 3 ? 110 : 96, r1 = 120;
+  return `M ${CLK.x + r0 * cos(a)} ${CLK.y + r0 * sin(a)} L ${CLK.x + r1 * cos(a)} ${CLK.y + r1 * sin(a)}`;
+}).join(' ');
+const WIN = { x0: 270, x1: 810, y0: 690, y1: 1230, r: 36 };
+const BLD = [
+  { x0: 270, x1: 318, top: 1118 },
+  { x0: 318, x1: 432, top: 1030, hosp: true },
+  { x0: 432, x1: 474, top: 1150 },
+  { x0: 474, x1: 561, top: 1086 },
+  { tower: true },
+  { x0: 575, x1: 652, top: 1124 },
+  { x0: 652, x1: 716, top: 1058 },
+  { x0: 716, x1: 762, top: 1146 },
+  { x0: 762, x1: 810, top: 1098 },
+];
+// Milad tower, drawn up from the rooftop on its left and back down to the one on its right
+const TOWER = ' L 561 948 L 541 936 Q 532 918 541 904 L 555 893 L 563 889 L 565 822 L 567 768 L 569 768 L 571 822 L 573 889' +
+  ' L 581 893 L 595 904 Q 604 918 595 936 L 575 948';
+let skylineD = `M ${WIN.x1} ${WIN.y1} L ${WIN.x1} ${WIN.y0 + WIN.r} Q ${WIN.x1} ${WIN.y0} ${WIN.x1 - WIN.r} ${WIN.y0}` +
+  ` L ${WIN.x0 + WIN.r} ${WIN.y0} Q ${WIN.x0} ${WIN.y0} ${WIN.x0} ${WIN.y0 + WIN.r} L ${WIN.x0} ${WIN.y1}`;
+for (const bd of BLD) skylineD += bd.tower ? TOWER : ` L ${bd.x0} ${bd.top} L ${bd.x1} ${bd.top}`;
+skylineD += ` L ${WIN.x1} ${WIN.y1}`;
+const plusD = 'M 361 1056 L 389 1056 M 375 1042 L 375 1070';
+const moonD = 'M 385 752 A 48 48 0 1 0 385 848 A 60 60 0 0 1 385 752';
+const T2 = joined(T1, tape(circleD(CLK.x, CLK.y, CLK.r, 0, 0), ticksD, skylineD, plusD, moonD), 150);
+const D2 = [b(4) - .22, 5.0], E2 = [6.5, 7.15];
+const CLOCK_DONE = tAt(T2.lead + 2 * PI * CLK.r, T2.len, ...D2);
+const SKY_D = T2.lead + T2.strokes[1].len + T2.strokes.slice(2, 14).reduce((s, x) => s + x.len, 0);
+const SKY_START = tAt(SKY_D, T2.len, ...D2);
+// the window frame is ~1590px of the stroke, then the skyline runs left to right (~2.85px of line per px of width)
+const litAt = x => tAt(SKY_D + 1590 + (x - 270) * 2.85, T2.len, ...D2);
+
+const r2 = rng(1405);
+const LIGHTS = [];
+for (const bd of BLD) {
+  if (bd.tower) continue;
+  for (let y = bd.top + (bd.hosp ? 46 : 16); y < 1212; y += 26)
+    for (let x = bd.x0 + 11; x + 9 < bd.x1 - 6; x += 19) {
+      if (!bd.hosp && r2() > .5) continue;
+      LIGHTS.push({ x, y, hosp: !!bd.hosp, on: litAt(x) + .05, off: bd.hosp ? 99 : 5.0 + r2() * 1.25 });
+    }
+}
+const STARS = [[470, 770], [650, 760], [735, 860], [505, 905], [700, 960], [330, 930]];
+
+function scene2(t) {
+  if (t < D2[0] || t > E2[1] + .05) return;
+  const ex = 1 - prog(t, 6.35, 6.8);
+  // building windows: on as the skyline is drawn, off one by one; the hospital stays awake
+  for (const L of LIGHTS) {
+    const a = prog(t, L.on, L.on + .25) * (1 - prog(t, L.off, L.off + .12)) * ex;
+    if (a <= 0) continue;
+    fx.fillStyle = rgba(L.hosp ? [255, 214, 140] : AMBER, (L.hosp ? .95 : .7) * a);
+    fx.fillRect(L.x, L.y, 9, 13);
+    if (L.hosp) glowAt(fx, L.x + 4, L.y + 6, 26, AMBER, .18 * a);
+  }
+  STARS.forEach(([x, y], i) => {
+    const a = prog(t, SKY_START + .3, SKY_START + .7) * ex * (.45 + .55 * Math.abs(sin(t * 2.2 + i * 1.7)));
+    glowAt(fx, x, y, 9, WHITE, .9 * a);
+  });
+  run(fx, T2, t, ...D2, ...E2, GREEN, {}, easeInOut, [CLOCK_DONE + .05, CLOCK_DONE + .6]);
+  // clock hands race through the night: 22:00 → 03:00
+  const ha = prog(t, CLOCK_DONE - .1, CLOCK_DONE + .25) * ex;
+  if (ha > 0) {
+    const h = 22 + 5 * easeInOut(prog(t, CLOCK_DONE + .1, 6.05));
+    const am = (h % 1) * 2 * PI - PI / 2, ah = (h % 12) / 12 * 2 * PI - PI / 2;
+    neon(fx, c => {
+      c.moveTo(CLK.x, CLK.y); c.lineTo(CLK.x + 66 * cos(ah), CLK.y + 66 * sin(ah));
+      c.moveTo(CLK.x, CLK.y); c.lineTo(CLK.x + 98 * cos(am), CLK.y + 98 * sin(am));
+    }, GREEN, { a: ha, w: 6 });
+    glowAt(fx, CLK.x, CLK.y, 16, WHITE, ha);
+  }
+  // the hospital's cross keeps glowing
+  glowAt(fx, 375, 1056, 60, GREEN, .25 * prog(t, SKY_START + .4, SKY_START + .8) * ex * (1 + .2 * sin(t * 5)));
+}
+
+// =====================================================================
+// scene 3 — the hand that does not let go
+// =====================================================================
+// right hand, palm down, local frame: wrist at the origin, fingers along +x, thumb towards -y
+function fingerFrame({ b: [bx, by], a }) {
+  const dx = cos(a), dy = sin(a);
+  return (s, o) => [bx + dx * s - dy * o, by + dy * s + dx * o];
+}
+function fingerOutline(f) {
+  const P = fingerFrame(f), { len, w } = f;
+  return [P(0, w), P(len * .45, w * .97), P(len - w * 1.2, w * .9), P(len - w * .45, w * .62), P(len, 0),
+          P(len - w * .45, -w * .62), P(len - w * 1.2, -w * .9), P(len * .45, -w * .97), P(0, -w)];
+}
+function nail(f) {
+  const P = fingerFrame(f), { len, w } = f;
+  return [P(len - w * 1.75, -w * .5), P(len - w * .8, -w * .47), P(len - w * .42, 0), P(len - w * .8, w * .47), P(len - w * 1.75, w * .5)];
+}
+function makeHand(curl = 1) {
+  const fingers = [
+    { b: [158, 42], a: .13, len: 92 * curl, w: 14 },
+    { b: [176, 13], a: .045, len: 120 * curl, w: 15.5 },
+    { b: [180, -18], a: -.03, len: 130 * curl, w: 16 },
+    { b: [172, -49], a: -.1, len: 116 * curl, w: 15.5 },
+  ];
+  const thumb = { b: [58, -50], a: -.45, len: 116, w: 18 };
+  const P = [[0, 50], [64, 58], [128, 60]];
+  fingers.forEach((f, i) => {
+    const o = fingerOutline(f);
+    if (i) { const p = P[P.length - 1], n = o[0]; P.push([(p[0] + n[0]) / 2 - 9, (p[1] + n[1]) / 2]); }
+    P.push(...o);
+  });
+  const T = fingerFrame(thumb), { len, w } = thumb;
+  P.push(T(len * .6, w * .88), T(len - w * 1.1, w * .84), T(len - w * .4, w * .6), T(len, 0),
+         T(len - w * .4, -w * .62), T(len - w * 1.2, -w * .95), T(len * .4, -w * 1.02), T(0, -w), [0, -48]);
+  return { outline: P, nails: [...fingers, thumb].map(nail) };
+}
+
+const PAT = { x: 340, y: 1004, a: -.2, s: 1.38 };
+const NUR = { x: 637, y: 845, a: 2.45, s: 1.47 };
+const patHand = makeHand(1), nurHand = makeHand(.92);
+
+const patMain = crD(place([[-330, 66], [-200, 61], ...patHand.outline, [-200, -55], [-330, -59]], PAT));
+const patExtras = [
+  polyD(place([[-176, -26], [-124, -26], [-124, 22], [-176, 22]], PAT), true),          // tape over the cannula
+  polyD(place([[-42, -50], [-42, 51]], PAT)), polyD(place([[-64, -51], [-64, 53]], PAT)), // wristband
+  polyD(place([[-70, -15], [-36, -15], [-36, 15], [-70, 15]], PAT), true),
+  ...patHand.nails.map(n => crD(place(n, PAT))),
+];
+const [ivTip, ivEnd] = place([[-150, -96], [-150, -26]], PAT);
+const ivD = `M -30 650 C 90 640 ${ivTip[0] - 34} ${ivTip[1] - 170} ${ivTip[0]} ${ivTip[1]} L ${ivEnd[0]} ${ivEnd[1]}`;
+const T3p = tape(ivD, patExtras[0], patMain, patExtras.slice(1));
+
+// nurse: sleeve with a cuff, then the hand laid over the patient's
+const nurOutlinePts = place([[-66, 52], [-34, 51], ...nurHand.outline, [-34, -49], [-66, -50]], NUR);
+const nurMain = polyD(place([[-640, 70], [-66, 64]], NUR)) + ' ' + crD(nurOutlinePts, true) + ' ' +
+  polyD(place([[-66, -62], [-640, -68]], NUR)).replace('M', 'L');
+const nurCuff = [polyD(place([[-66, 52], [-66, -50]], NUR)), polyD(place([[-92, 66], [-92, -64]], NUR))];
+const T3n = tape(nurMain, nurCuff, nurHand.nails.map(n => crD(place(n, NUR))));
+const NUR_POLY = T3n.strokes[0].pts;
+const TOUCH = b(10), CONTACT = [492, 972];
+const D3p = [6.55, 7.95], D3n = [7.55, TOUCH + .02], E3 = [10.5, 11.1];
+
+function scene3(t) {
+  if (t < D3p[0] || t > E3[1] + .05) return;
+  // the patient's hand is drawn on its own layer so the nurse's hand can cover it
+  occ.clearRect(0, 0, W, H);
+  run(occ, T3p, t, ...D3p, ...E3, GREEN);
+  const cover = easeInOut(prog(t, TOUCH - .3, TOUCH + .1)) * (1 - prog(t, E3[0] + .35, E3[1]));
+  if (cover > 0) {
+    occ.save(); occ.globalCompositeOperation = 'destination-out'; occ.fillStyle = `rgba(0,0,0,${cover})`;
+    occ.beginPath(); NUR_POLY.forEach(([x, y], i) => (i ? occ.lineTo(x, y) : occ.moveTo(x, y))); occ.fill(); occ.restore();
+  }
+  fx.drawImage(occCanvas, 0, 0);
+  run(fx, T3n, t, ...D3n, ...E3, GREEN, {}, easeSoft);
+  // touch: rings of light spread from where the hands meet
+  for (let i = 0; i < 3; i++) {
+    const k = prog(t, TOUCH + i * .22, TOUCH + i * .22 + 1.5);
+    if (k <= 0 || k >= 1) continue;
+    fx.save(); fx.globalCompositeOperation = 'lighter';
+    fx.strokeStyle = rgba(GREEN, .55 * (1 - k)); fx.lineWidth = 3 + 6 * (1 - k);
+    fx.shadowColor = rgba(GREEN); fx.shadowBlur = 24;
+    fx.beginPath(); fx.arc(...CONTACT, 40 + easeOut(k) * 520, 0, 2 * PI); fx.stroke(); fx.restore();
+  }
+  glowAt(fx, ...CONTACT, 260, GREEN, .3 * flash(t, TOUCH, 2.2));
+}
+
+// =====================================================================
+// scene 4 — the lamp: Nightingale's lantern becomes today's night-station lamp
+// =====================================================================
+const lanternD = 'M 430 1100 L 650 1100 Q 668 1100 668 1082 L 668 1058 Q 668 1046 650 1044 L 612 1040' +
+  ' C 710 975 712 760 606 702 L 602 672 L 640 664 Q 642 614 580 600 L 576 578' +
+  ' L 504 578 L 500 600 Q 438 614 440 664 L 478 672 L 474 702 C 368 760 370 975 468 1040' +
+  ' L 430 1044 Q 412 1046 412 1058 L 412 1082 Q 412 1100 430 1100';
+const guardsD = 'M 446 650 C 420 470 660 470 634 650 M 505 704 C 452 790 452 950 498 1036 M 575 704 C 628 790 628 950 582 1036 M 500 1040 L 508 992 L 572 992 L 580 1040 M 540 992 L 540 948';
+const lampD = 'M 200 1110 L 312 1110 L 318 1090 Q 324 1074 345 1072 L 440 1072 Q 462 1074 466 1090 L 472 1110 L 880 1110' +
+  ' L 472 1110 L 466 1090 Q 462 1074 440 1072 L 398 1072 L 520 774 L 716 642 L 739 653 L 724 826 Q 625 837 570 754 L 696 633 L 716 642';
+const T4 = joined(T3n, tape(lanternD, guardsD));
+// both outlines resampled to the same number of points so one can morph into the other
+function resample(s, n) {
+  const pts = [];
+  for (let i = 0; i <= n; i++) { const p = pointAt(s, s.len * i / n); pts.push([p[0], p[1]]); }
+  return pts;
+}
+const MORPH_N = 900;
+const lanternPts = resample(T4.strokes[1], MORPH_N), lampPts = resample(sampleD(lampD, 1), MORPH_N);
+const T4L = tape(mkStroke(lampPts));
+const D4 = [10.7, 12.0], IGNITE = b(14.5), MORPH = [13.2, 13.95], E4 = [14.5, 15.0];
+const FLAME = new Path2D('M 0 -62 C 16 -32 26 -10 22 10 C 18 30 -18 30 -22 10 C -26 -10 -16 -32 0 -62 Z');
+
+function scene4(t) {
+  if (t < D4[0] || t > E4[1] + .05) return;
+  const warm = prog(t, IGNITE, IGNITE + .9);
+  const col = mix(GREEN, [255, 214, 150], warm);
+  if (t < MORPH[0]) {
+    const head = easeInOut(prog(t, ...D4)) * T4.len, tail = easeInOut(prog(t, D4[1], D4[1] + .45)) * T4.lead;
+    const p = drawTape(fx, T4, tail, head, col);
+    if (t < D4[1]) headDot(fx, p, col);
+  } else {
+    const k = easeInOut(prog(t, ...MORPH));
+    if (t < MORPH[1]) {
+      neon(fx, c => lanternPts.forEach(([x, y], i) => {
+        const q = lampPts[i], X = lerp(x, q[0], k), Y = lerp(y, q[1], k);
+        i ? c.lineTo(X, Y) : c.moveTo(X, Y);
+      }), col);
+      neon(fx, c => traceTape(c, T4, T4.lead + T4.strokes[1].len, T4.len), col, { a: 1 - prog(t, MORPH[0], MORPH[0] + .25) });
+    } else run(fx, T4L, t, 0, MORPH[1], ...E4, col);
+  }
+  // flame inside the lantern
+  const fa = easeBack(prog(t, IGNITE, IGNITE + .35)) * (1 - prog(t, MORPH[0], MORPH[0] + .35));
+  if (fa > 0) {
+    const fl = 1 + .06 * sin(t * 19) + .04 * sin(t * 31);
+    glowAt(fx, 540, 900, 330, AMBER, .42 * fa * fl);
+    fx.save(); fx.translate(540 + 2 * sin(t * 11), 922); fx.scale(fa, fa * fl);
+    const g = fx.createRadialGradient(0, 4, 2, 0, -10, 70);
+    g.addColorStop(0, '#fffbe8'); g.addColorStop(.35, '#ffd27a'); g.addColorStop(1, 'rgba(255,140,40,.15)');
+    fx.fillStyle = g; fx.shadowColor = rgba(AMBER); fx.shadowBlur = 40; fx.fill(FLAME); fx.restore();
+    glowAt(fx, 540, 900, 900, AMBER, .5 * flash(t, IGNITE, 4));
+  }
+  // the desk lamp's light cone and pool
+  const la = prog(t, MORPH[1] - .2, MORPH[1] + .2) * (1 - prog(t, E4[0], E4[0] + .4));
+  if (la > 0) {
+    fx.save();
+    const g = fx.createLinearGradient(647, 790, 505, 1110);
+    g.addColorStop(0, rgba(AMBER, .38 * la)); g.addColorStop(1, rgba(AMBER, .04 * la));
+    fx.filter = 'blur(16px)';
+    fx.fillStyle = g; fx.beginPath(); fx.moveTo(575, 760); fx.lineTo(718, 826); fx.lineTo(700, 1104); fx.lineTo(320, 1104); fx.closePath(); fx.fill();
+    fx.restore();
+    fx.save(); fx.translate(510, 1110); fx.scale(1, .12); glowAt(fx, 0, 0, 260, AMBER, .55 * la); fx.restore();
+    glowAt(fx, 650, 800, 120, [255, 236, 200], .6 * la);
+    neon(fx, c => { c.moveTo(533, 774); c.arc(520, 774, 13, 0, 2 * PI); c.moveTo(726, 642); c.arc(716, 642, 10, 0, 2 * PI); }, col, { a: la, w: 4 });
+  }
+}
+
+// =====================================================================
+// scene 5 — a whole shift in a few beats, ending on a cup of tea gone cold
+// =====================================================================
+const ICONS = [
+  // stethoscope
+  ['M 452 552 C 428 640 438 720 498 782 Q 540 818 582 782 C 642 720 652 640 628 552', circleD(452, 541, 11, PI / 2, 1), circleD(628, 541, 11, PI / 2, 0),
+   'M 540 806 C 540 900 470 958 470 1040 C 470 1112 562 1132 622 1092 C 660 1066 668 1016 660 982', circleD(660, 936, 46, PI / 2, 0), circleD(660, 936, 25, PI / 2, 0)],
+  // IV bag with drip chamber and line
+  ['M 470 500 L 610 500 Q 640 500 640 530 L 640 790 Q 640 820 610 828 L 560 850 L 560 872 L 520 872 L 520 850 L 470 828 Q 440 820 440 790 L 440 530 Q 440 500 470 500',
+   'M 515 520 L 565 520 Q 575 520 575 530 Q 575 540 565 540 L 515 540 Q 505 540 505 530 Q 505 520 515 520',
+   'M 600 600 L 624 600 M 610 640 L 624 640 M 600 680 L 624 680 M 610 720 L 624 720 M 600 760 L 624 760',
+   'M 525 872 L 525 940 Q 525 954 540 954 Q 555 954 555 940 L 555 872', 'M 540 954 C 540 1040 600 1060 610 1120 C 618 1170 570 1190 548 1200'],
+  // clipboard with a checklist (right to left, like a Persian form)
+  ['M 430 530 L 650 530 Q 676 530 676 556 L 676 1080 Q 676 1106 650 1106 L 430 1106 Q 404 1106 404 1080 L 404 556 Q 404 530 430 530',
+   'M 490 548 L 490 508 Q 490 494 504 494 L 520 494 Q 524 470 540 470 Q 556 470 560 494 L 576 494 Q 590 494 590 508 L 590 548 Z',
+   'M 612 640 L 623 653 L 645 624 M 590 640 L 440 640', 'M 612 740 L 623 753 L 645 724 M 590 740 L 470 740',
+   'M 612 840 L 623 853 L 645 824 M 590 840 L 450 840', 'M 616 930 L 644 930 L 644 958 L 616 958 Z M 590 944 L 490 944'],
+  // nursing clog
+  ['M 300 1050 L 790 1050 Q 850 1050 852 990 C 854 905 800 850 712 838 C 650 830 604 838 572 856 Q 540 874 508 892 C 470 912 410 914 368 902 Q 318 890 306 940 Q 300 990 300 1050',
+   'M 303 1012 L 849 1012', 'M 340 1050 L 340 1032 M 420 1050 L 420 1032 M 500 1050 L 500 1032 M 580 1050 L 580 1032 M 660 1050 L 660 1032 M 740 1050 L 740 1032',
+   circleD(616, 872, 10), circleD(664, 860, 10), circleD(712, 864, 10), circleD(758, 880, 10), circleD(796, 908, 10),
+   circleD(646, 906, 10), circleD(694, 900, 10), circleD(742, 912, 10), circleD(786, 944, 10),
+   circleD(474, 952, 16), 'M 460 940 C 400 960 330 958 290 922 M 462 968 C 400 990 326 990 282 952'],
+  // tea in a Persian estekan on a saucer, with sugar cubes
+  ['M 648 640 A 108 13 0 1 1 432 640 A 108 13 0 1 1 648 640 C 640 700 606 735 606 770 C 606 805 634 840 632 880 Q 628 922 590 925 L 490 925 Q 452 922 448 880 C 446 840 474 805 474 770 C 474 735 440 700 432 640',
+   'M 330 945 A 210 34 0 0 0 750 945 A 210 34 0 0 0 640 915.1 M 440 915.1 A 210 34 0 0 0 330 945', 'M 372 966 Q 540 1018 708 966',
+   'M 366 936 L 384 926 L 404 936 L 386 946 Z M 366 936 L 366 958 L 386 968 L 404 958 L 404 936 M 386 946 L 386 968',
+   'M 404 950 L 420 942 L 438 950 L 422 958 Z M 404 950 L 404 968 L 422 976 L 438 968 L 438 950 M 422 958 L 422 976'],
+];
+let prev5 = T4L;
+const T5 = ICONS.map(ic => (prev5 = joined(prev5, tape(...ic), 140)));
+const ICON_T = T5.map((_, i) => {
+  const at = b(18 + i);
+  const w = i < 4 ? { d: [at - .42, at + .02], e: [at + .42, at + .62] } : { d: [at - .42, at + .25], e: [20.45, 20.95] };
+  // the tail follows the pen out of the connector, so only the icon is left on screen
+  const r = tAt(T5[i].lead, T5[i].len, ...w.d, easeOut);
+  return { ...w, r: [r - .02, r + .22] };
+});
+const TEA = new Path2D('M 437 668 C 446 710 474 740 474 770 C 474 805 446 840 448 880 Q 452 922 490 925 L 590 925 Q 628 922 632 880 C 634 840 606 805 606 770 C 606 740 634 710 643 668 Z');
+const TEA_T = b(22) + .25;
+
+function scene5(t) {
+  if (t < ICON_T[0].d[0] || t > 21) return;
+  T5.forEach((T, i) => run(fx, T, t, ...ICON_T[i].d, ...ICON_T[i].e, GREEN, {}, easeOut, ICON_T[i].r));
+  // a drop falls in the drip chamber
+  const iv = ICON_T[1];
+  if (t > iv.d[1] - .05 && t < iv.e[0]) {
+    const k = ((t - iv.d[1]) * 2.5) % 1;
+    glowAt(fx, 540, 885 + 55 * k * k, 8, [190, 255, 235], .9 * (1 - k));
+  }
+  // tea pours, steams for a moment, then goes cold
+  const fill = easeOut(prog(t, TEA_T - .1, TEA_T + .45)) * (1 - prog(t, 20.4, 20.75));
+  if (fill > 0) {
+    fx.save(); fx.clip(TEA);
+    const top = lerp(925, 668, fill);
+    const g = fx.createLinearGradient(0, 668, 0, 925);
+    g.addColorStop(0, 'rgba(222,120,40,.85)'); g.addColorStop(1, 'rgba(150,50,14,.9)');
+    fx.fillStyle = g; fx.fillRect(400, top, 280, 940 - top);
+    fx.restore();
+    glowAt(fx, 540, 800, 260, AMBER, .18 * fill);
+  }
+  const steam = prog(t, TEA_T + .2, TEA_T + .6) * (1 - prog(t, 19.35, 20.15));
+  if (steam > 0) {
+    [[500, 0], [540, 2.1], [580, 4.2]].forEach(([x0, ph]) => neon(fx, c => {
+      for (let y = 622; y > 622 - 150 * steam; y -= 4) {
+        const x = x0 + 10 * sin(y * .045 + t * 3.2 + ph);
+        y === 622 ? c.moveTo(x, y) : c.lineTo(x, y);
+      }
+    }, WHITE, { a: .55 * steam, w: 4, glow: 14 }));
+  }
+}
+
+// =====================================================================
+// scene 6 — the line becomes a heartbeat again, and the beat becomes a heart
+// =====================================================================
+const BASE_Y = 1040;
+const L6 = ecgStroke(-10, 540, BASE_Y, [[330, 120]]);
+const R6 = ecgStroke(540, 1090, BASE_Y, [[750, 120]]);
+const T6L = tape(L6), T6R = tape(R6);
+const HEART_D = 'M 0 175 C -70 115 -180 55 -180 -55 C -180 -135 -120 -175 -70 -175 C -30 -175 -6 -151 0 -125' +
+  ' C 6 -151 30 -175 70 -175 C 120 -175 180 -135 180 -55 C 180 55 70 115 0 175';
+const T6H = tape(HEART_D);
+const HEART_PATH = new Path2D(HEART_D + ' Z');
+const THUMPS = [b(27), b(28)];
+const HL = [[20.58, -10], [b(25.5), 330], [b(26), 540]];       // left trace, pen x over time
+const HR = [[22.2, 540], [b(27), 750], [22.95, 1090]];         // right trace
+const HDRAW = [b(26), 22.2];
+const MOVE = [24.75, 25.6];
+
+function heartState(t) {
+  const m = easeInOut(prog(t, ...MOVE));
+  let s = lerp(1, .5, m);
+  for (const tb of THUMPS) s *= 1 + .13 * flash(t, tb, 6) * clamp((t - tb) * 25);
+  for (const tb of [b(32), b(34)]) s *= 1 + .07 * flash(t, tb, 5) * clamp((t - tb) * 25);
+  return { x: 540, y: lerp(BASE_Y - 175, 625, m), s, m };
+}
+const r6 = rng(77);
+const SPARKS = THUMPS.map(() => Array.from({ length: 46 }, () => {
+  const a = r6() * 2 * PI, v = 260 + r6() * 620;
+  return { vx: cos(a) * v, vy: sin(a) * v - 120, s: 3 + r6() * 6, c: [PINK, WHITE, GREEN, [255, 180, 190]][Math.floor(r6() * 4)] };
+}));
+
+function scene6(t) {
+  if (t < HL[0][0]) return;
+  const out = 1 - prog(t, 29.3, 30);
+  // the two halves of the trace; in the finale they shrink into an underline for the title
+  const xl = lerp(-10, 200, easeInOut(prog(t, MOVE[0] + .05, MOVE[1] - .1)));
+  const xr = lerp(1090, 880, easeInOut(prog(t, MOVE[0] + .05, MOVE[1] - .1)));
+  const hL = distAtX(L6, kf(t, HL)), hR = distAtX(R6, min(kf(t, HR), xr));
+  const pl = drawTape(fx, T6L, distAtX(L6, xl), hL, GREEN, { a: out });
+  if (t < HL[2][0]) headDot(fx, pl, GREEN);
+  if (t > HR[0][0]) {
+    const pr = drawTape(fx, T6R, 0, hR, GREEN, { a: out });
+    if (t < HR[2][0]) headDot(fx, pr, GREEN);
+  }
+  // a pulse of light runs along the underline on the last beats
+  for (const tb of [b(32), b(34)]) {
+    const k = prog(t, tb - .45, tb + .45);
+    if (k > 0 && k < 1) {
+      const x = lerp(200, 880, k), s = x < 540 ? L6 : R6;
+      const p = pointAt(s, distAtX(s, x));
+      headDot(fx, p, GREEN, .8 * sin(k * PI) * out);
+    }
+  }
+
+  // heart
+  if (t < HDRAW[0]) return;
+  const H = heartState(t);
+  const fill = prog(t, HDRAW[1] - .08, HDRAW[1] + .3);
+  glowAt(fx, H.x, H.y, 420 * H.s, PINK, (.28 * fill + .25 * (flash(t, THUMPS[0], 4) + flash(t, THUMPS[1], 4))) * out);
+  fx.save(); fx.translate(H.x, H.y); fx.scale(H.s, H.s);
+  if (fill > 0) {
+    const g = fx.createRadialGradient(-40, -60, 10, 0, 0, 220);
+    g.addColorStop(0, rgba([255, 190, 200], .95 * fill)); g.addColorStop(.6, rgba(PINK, .9 * fill)); g.addColorStop(1, rgba([200, 60, 90], .9 * fill));
+    fx.globalAlpha = out; fx.fillStyle = g; fx.fill(HEART_PATH); fx.globalAlpha = 1;
+  }
+  const hk = easeSoft(prog(t, ...HDRAW)) * T6H.len;
+  const hp = drawTape(fx, T6H, 0, hk, mix(GREEN, PINK, fill), { w: 5 / H.s, glow: 20, a: out });
+  fx.restore();
+  if (t < HDRAW[1] && hp) headDot(fx, [H.x + hp[0] * H.s, H.y + hp[1] * H.s], GREEN);
+  // sparks on each thump
+  SPARKS.forEach((list, i) => {
+    const age = t - THUMPS[i];
+    if (age < 0 || age > 1.6) return;
+    const drag = (1 - exp(-2.4 * age)) / 2.4;
+    for (const p of list) glowAt(fx, H.x + p.vx * drag, H.y + p.vy * drag + 90 * age * age, p.s * 2.2, p.c, .85 * (1 - age / 1.6));
+  });
+}
+
+// ---------- background ----------
+const r0 = rng(9);
+const MOTES = Array.from({ length: 46 }, () => ({ x: r0() * W, y: r0() * H, s: 1 + r0() * 2.4, v: 8 + r0() * 22, ph: r0() * 6.3, a: .12 + r0() * .25 }));
+const GRAIN = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'), img = g.createImageData(256, 256), rr = rng(3);
+  for (let i = 0; i < img.data.length; i += 4) { const v = rr() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+  g.putImageData(img, 0, 0);
+  return bg.createPattern(c, 'repeat');
+})();
+function drawBg(t) {
+  const g = bg.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#07101d'); g.addColorStop(.5, '#0f1e33'); g.addColorStop(1, '#0a1525');
+  bg.fillStyle = g; bg.fillRect(0, 0, W, H);
+  // monitor graticule
+  const grid = .05 * (1 - .7 * prog(t, IGNITE, IGNITE + 1) * (1 - prog(t, 14.6, 15.4)));
+  bg.lineWidth = 1;
+  for (let x = 0; x <= W; x += 40) { bg.strokeStyle = rgba(GREEN, x % 200 ? grid * .5 : grid); bg.beginPath(); bg.moveTo(x + .5, 0); bg.lineTo(x + .5, H); bg.stroke(); }
+  for (let y = 0; y <= H; y += 40) { bg.strokeStyle = rgba(GREEN, y % 200 ? grid * .5 : grid); bg.beginPath(); bg.moveTo(0, y + .5); bg.lineTo(W, y + .5); bg.stroke(); }
+  // moonlight in scene 2, lamplight in scene 4, a warm cup in scene 5, love in 6–7
+  glowAt(bg, 540, 900, 760, SKY, .12 * prog(t, 3.6, 4.6) * (1 - prog(t, 6.4, 7.2)));
+  const warm = prog(t, IGNITE, IGNITE + .9) * (1 - prog(t, 14.6, 15.4));
+  glowAt(bg, 540, 880, 1000, AMBER, .3 * warm * (1 + .05 * sin(t * 13)));
+  glowAt(bg, 540, 800, 800, AMBER, .14 * prog(t, TEA_T, TEA_T + .5) * (1 - prog(t, 19.4, 20.6)));
+  const H6 = heartState(t);
+  glowAt(bg, H6.x, H6.y, 1000, PINK, .16 * prog(t, 22.1, 22.7) * (1 - prog(t, 29.3, 30)));
+  // dust in the air
+  for (const m of MOTES) {
+    const y = ((m.y - m.v * t) % H + H) % H;
+    glowAt(bg, m.x + 12 * sin(m.ph + t * .7), y, m.s * 3, WHITE, m.a * (.6 + .4 * sin(m.ph + t * 1.8)));
+  }
+  // vignette
+  const v = bg.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, H * .78);
+  for (let k = 0; k <= 1; k += .1) v.addColorStop(k, `rgba(0,0,0,${.6 * k ** 2.4})`);
+  bg.fillStyle = v; bg.fillRect(0, 0, W, H);
+  bg.save(); bg.globalAlpha = .05; bg.fillStyle = GRAIN;
+  const f = Math.floor(t * 30);
+  bg.translate(-(f * 73 % 256), -(f * 151 % 256)); bg.fillRect(0, 0, W + 256, H + 256); bg.restore();
+}
+
+// ---------- text ----------
+const $ = id => document.getElementById(id);
+function show(id, t, inA, inB, outA, outB, { dy = 36, scale = .94, blur = 12, back = false } = {}) {
+  const el = $(id), p = prog(t, inA, inB);
+  const i = back ? easeBack(p) : easeOut(p);
+  const o = outA == null ? 0 : easeInOut(prog(t, outA, outB));
+  el.style.opacity = clamp(p * 1.5) * (1 - o);
+  el.style.transform = `translateY(${(1 - i) * dy - o * 24}px) scale(${lerp(scale, 1, i) * (1 + o * .04)})`;
+  el.style.filter = `blur(${(1 - clamp(p * 1.3)) * blur + o * blur}px)`;
+}
+$('from').textContent = FROM;
+
+// ---------- timeline ----------
+const stage = $('stage');
+function renderAt(t) {
+  drawBg(t);
+  fx.clearRect(0, 0, W, H);
+  scene1(t); scene2(t); scene3(t); scene4(t); scene5(t); scene6(t);
+
+  show('s2', t, 4.45, 5.1, 6.3, 6.75);
+  show('s3a', t, 8.45, 9.05, 10.4, 10.85);
+  show('s3b', t, 8.8, 9.4, 10.4, 10.85);
+  show('s4a', t, 12.35, 12.95, 14.45, 14.9);
+  show('s4b', t, 12.7, 13.3, 14.45, 14.9);
+  show('s5a', t, 15.3, 15.9, 18.0, 18.4);
+  show('s5b', t, 18.75, 19.35, 20.4, 20.8);
+  show('s5c', t, 19.1, 19.7, 20.4, 20.8);
+  show('s6a', t, 22.7, 23.3, 24.5, 24.9);
+  show('s6b', t, 23.0, 23.6, 24.5, 24.9);
+  show('title', t, 25.0, 25.8, 29.3, 30, { dy: 0, scale: .7, blur: 18, back: true });
+  show('sub1', t, 26.2, 26.9, 29.3, 30);
+  show('sub2', t, 26.5, 27.2, 29.3, 30);
+  show('from', t, 27.3, 28.0, 29.3, 30);
+}
+window.renderAt = renderAt;
+window.DURATION = DURATION;
+
+function fit() {
+  const s = RENDER ? 1 : min(innerWidth / W, innerHeight / H);
+  stage.style.transform = `scale(${s})`;
+}
+addEventListener('resize', fit); fit();
+
+window.ready = document.fonts.ready.then(() => {
+  renderAt(0);
+  if (RENDER) return;
+  const audio = $('music');
+  let start = performance.now();
+  const play = () => { start = performance.now(); audio.currentTime = 0; audio.play().catch(() => {}); };
+  $('replay').onclick = play;
+  (function loop(now) {
+    const t = audio.paused ? (now - start) / 1000 % DURATION : audio.currentTime;
+    renderAt(min(t, DURATION));
+    requestAnimationFrame(loop);
+  })(performance.now());
+});
+</script>
+</body>
+</html>
