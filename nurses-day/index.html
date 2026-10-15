@@ -696,9 +696,8 @@ function drawBg(t) {
   const v = bg.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, H * .78);
   for (let k = 0; k <= 1; k += .1) v.addColorStop(k, `rgba(0,0,0,${.6 * k ** 2.4})`);
   bg.fillStyle = v; bg.fillRect(0, 0, W, H);
-  bg.save(); bg.globalAlpha = .05; bg.fillStyle = GRAIN;
-  const f = Math.floor(t * 30);
-  bg.translate(-(f * 73 % 256), -(f * 151 % 256)); bg.fillRect(0, 0, W + 256, H + 256); bg.restore();
+  // static grain: dithers the dark gradients without costing the encoder anything
+  bg.save(); bg.globalAlpha = .045; bg.fillStyle = GRAIN; bg.fillRect(0, 0, W, H); bg.restore();
 }
 
 // ---------- text ----------
