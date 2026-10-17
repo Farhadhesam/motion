@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>لاکچری اونا، لاکچری ما</title>
+<style>
+  @font-face { font-family: Vazirmatn; font-weight: 400; src: url(../girls-day/fonts/Vazirmatn-Regular.woff2) format('woff2'); }
+  @font-face { font-family: Vazirmatn; font-weight: 700; src: url(../girls-day/fonts/Vazirmatn-Bold.woff2) format('woff2'); }
+  @font-face { font-family: Vazirmatn; font-weight: 900; src: url(../girls-day/fonts/Vazirmatn-Black.woff2) format('woff2'); }
+  html, body { margin: 0; background: #000; }
+  canvas { display: block; width: 1080px; height: 1920px; }
+  body:not(.render) canvas { width: auto; height: 100vh; margin: 0 auto; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// Re-edit of the "their luxury vs our luxury" clip. The source video is pre-extracted to
+// assets/frames/NNNN.jpg (30 fps); timeline.json holds the cut list, spec cards and SFX cues.
+// renderAt(t) draws output frame t (seconds); render.mjs steps through it and encodes.
+const W = 1080, H = 1920, SW = 576, SH = 1024, K = W / SW, LAST_FRAME = 1097;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const RENDER = location.search.includes('render');
+if (RENDER) document.body.classList.add('render');
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const ease = {
+  outCubic: x => 1 - (1 - x) ** 3,
+  inCubic: x => x ** 3,
+  inOut: x => (x < 0.5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2),
+  outBack: x => 1 + 2.7 * (x - 1) ** 3 + 1.7 * (x - 1) ** 2,
+};
+function rng(seed) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const F = (w, s) => `${w} ${s}px Vazirmatn, "Noto Color Emoji"`;
+const fa = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '٬').replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
+function gold(y0, y1) {
+  const g = ctx.createLinearGradient(0, y0, 0, y1);
+  g.addColorStop(0, '#fff4c8'); g.addColorStop(0.45, '#f3c54a'); g.addColorStop(0.8, '#b9831a'); g.addColorStop(1, '#ffe39a');
+  return g;
+}
+
+let TL;
+const shot = id => TL.shots.find(s => s.id === id);
+window.ready = (async () => {
+  TL = window.TIMELINE ?? (await (await fetch('timeline.json')).json());
+  let t = 0;
+  for (const s of TL.shots) {
+    s.dur ??= s.src[1] - s.src[0];
+    s.start = t;
+    t += s.dur;
+  }
+  window.DURATION = t;
+  await Promise.all(['400', '700', '900'].map(w => document.fonts.load(`${w} 40px Vazirmatn`, 'لاکچری')));
+  await document.fonts.load('40px "Noto Color Emoji"', '🚽');
+})();
+
+// --- source frames -------------------------------------------------------
+const cache = new Map();
+function frame(src) {
+  const i = clamp(Math.floor(src * 30 + 1e-3), 0, LAST_FRAME);
+  if (!cache.has(i)) {
+    const img = new Image();
+    img.src = `assets/frames/${String(i).padStart(4, '0')}.jpg`;
+    cache.set(i, img.decode().then(() => img));
+    if (cache.size > 24) cache.delete(cache.keys().next().value);
+  }
+  return cache.get(i);
+}
+const small = Object.assign(document.createElement('canvas'), { width: 54, height: 96 });
+function drawBlurred(img) {
+  // Downscale-then-upscale is a cheap, heavy blur for backgrounds.
+  small.getContext('2d').drawImage(img, 0, 0, 54, 96);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(small, 0, 0, W, H);
+}
+function withCam({ scale = 1, cx = 0.5, cy = 0.5, dx = 0, dy = 0 }, fn) {
+  ctx.save();
+  ctx.translate(cx * W + dx, cy * H + dy);
+  ctx.scale(scale, scale);
+  ctx.translate(-cx * W, -cy * H);
+  fn();
+  ctx.restore();
+}
+function vignette(a) {
+  const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.75);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, `rgba(0,0,0,${a})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// --- camera moves keyed to source time ----------------------------------
+const ZOOMS = [{ from: 16.35, to: 19.4, scale: 1.16, cx: 0.24, cy: 0.37 }]; // punch in on the aftabeh
+function zoomAt(src) {
+  for (const z of ZOOMS) {
+    if (src < z.from || src > z.to) continue;
+    const k = Math.min(ease.outCubic(clamp((src - z.from) / 0.18)), ease.inOut(clamp((z.to - src) / 0.3)));
+    return { scale: 1 + (z.scale - 1) * k, cx: z.cx, cy: z.cy };
+  }
+  return {};
+}
+// Rough track of the aftabeh (source pixels) while he shows it off.
+const JUG = [[16.4, 126, 384], [16.8, 150, 366], [17.2, 130, 360], [17.6, 135, 390], [18.0, 135, 366], [18.4, 144, 410], [18.8, 146, 440], [19.2, 162, 505]];
+function track(keys, s) {
+  if (s <= keys[0][0]) return keys[0];
+  for (let i = 0; i < keys.length - 1; i++) {
+    const [t0, x0, y0] = keys[i], [t1, x1, y1] = keys[i + 1];
+    if (s < t1) { const k = ease.inOut((s - t0) / (t1 - t0)); return [s, lerp(x0, x1, k), lerp(y0, y1, k)]; }
+  }
+  return keys[keys.length - 1];
+}
+function star(x, y, s, a) {
+  if (s <= 0.5 || a <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.translate(x, y);
+  ctx.beginPath();
+  ctx.moveTo(0, -s); ctx.quadraticCurveTo(0, 0, s, 0); ctx.quadraticCurveTo(0, 0, 0, s);
+  ctx.quadraticCurveTo(0, 0, -s, 0); ctx.quadraticCurveTo(0, 0, 0, -s);
+  ctx.fillStyle = '#fffbe6';
+  ctx.shadowColor = '#ffcf5a';
+  ctx.shadowBlur = 22;
+  ctx.fill();
+  ctx.restore();
+}
+function drawSparkles(src) {
+  const a = clamp((src - 16.45) / 0.25) * clamp((19.3 - src) / 0.3);
+  if (a <= 0) return;
+  const [, jx, jy] = track(JUG, src);
+  const cx = jx * K, cy = jy * K;
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 280);
+  g.addColorStop(0, `rgba(255,214,110,${0.38 * a})`);
+  g.addColorStop(1, 'rgba(255,214,110,0)');
+  ctx.globalCompositeOperation = 'screen';
+  ctx.fillStyle = g;
+  ctx.fillRect(cx - 280, cy - 280, 560, 560);
+  ctx.globalCompositeOperation = 'source-over';
+  const r = rng(42);
+  for (let i = 0; i < 11; i++) {
+    const ang = r() * Math.PI * 2, rad = 60 + r() * 170, ph = r() * 6.28, sp = 5 + r() * 7, size = 14 + r() * 28;
+    const tw = Math.max(0, Math.sin(src * sp + ph));
+    star(cx + Math.cos(ang) * rad, cy + Math.sin(ang) * rad * 1.3, size * tw, a * tw);
+  }
+}
+
+// --- shots ---------------------------------------------------------------
+const GRADE = {
+  woman: 'contrast(1.08) saturate(1.12) brightness(1.02)',
+  man: 'contrast(1.06) saturate(1.2) sepia(0.08)',
+  melon: 'contrast(1.05) saturate(1.15)',
+};
+GRADE.freeze = 'contrast(1.14) saturate(1.3) sepia(0.08)';
+GRADE.man2 = GRADE.man;
+
+async function drawTitle(lt) {
+  const [wImg, mImg] = await Promise.all([frame(4.0), frame(17.2)]);
+  const kin = ease.outCubic(clamp(lt / 0.38));
+  const zoom = 1 + 0.03 * lt;
+  const panel = (img, sy, dy, poly, from) => {
+    ctx.save();
+    ctx.translate(from * (1 - kin) * W, 0);
+    ctx.beginPath();
+    poly.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+    ctx.clip();
+    ctx.translate(W / 2, dy + 510); ctx.scale(zoom, zoom); ctx.translate(-W / 2, -(dy + 510));
+    ctx.filter = GRADE.woman;
+    ctx.drawImage(img, 0, sy, SW, 544, 0, dy, W, 1020);
+    ctx.restore();
+  };
+  panel(wImg, 220, 0, [[0, 0], [W, 0], [W, 900], [0, 1020]], -1);
+  panel(mImg, 0, 900, [[0, 1020], [W, 900], [W, H], [0, H]], 1);
+  vignette(0.35);
+
+  // gold seam
+  const ks = ease.outCubic(clamp((lt - 0.2) / 0.3));
+  if (ks > 0) {
+    ctx.save();
+    ctx.lineWidth = 10; ctx.lineCap = 'round';
+    ctx.strokeStyle = gold(880, 1040);
+    ctx.shadowColor = 'rgba(255,200,80,.8)'; ctx.shadowBlur = 30;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - (W / 2 + 20) * ks, 960 + 60 * ks * (1 + 20 / 540));
+    ctx.lineTo(W / 2 + (W / 2 + 20) * ks, 960 - 60 * ks * (1 + 20 / 540));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const pill = (text, y, delay) => {
+    const k = ease.outBack(clamp((lt - delay) / 0.3));
+    if (k <= 0) return;
+    ctx.save();
+    ctx.font = F(900, 62); ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(text).width + 64, h = 100, cx = 60 + w / 2;
+    ctx.translate(cx, y); ctx.scale(k, k);
+    ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 24;
+    ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, 50);
+    ctx.fillStyle = 'rgba(12,12,16,.9)'; ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = 4; ctx.strokeStyle = gold(-h / 2, h / 2); ctx.stroke();
+    ctx.fillStyle = gold(-30, 30);
+    ctx.fillText(text, 0, 6);
+    ctx.restore();
+  };
+  pill('لاکچری اونا 🏎️', 870, 0.55);
+  pill('لاکچری ما 🚽', 1098, 0.7);
+
+  // VS badge with a ring burst
+  const kv = clamp((lt - 0.42) / 0.3);
+  if (kv > 0) {
+    const ring = clamp((lt - 0.42) / 0.5);
+    ctx.save();
+    ctx.globalAlpha = 1 - ring;
+    ctx.lineWidth = 8; ctx.strokeStyle = '#ffd56a';
+    ctx.beginPath(); ctx.arc(W / 2, 960, lerp(96, 300, ease.outCubic(ring)), 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+    ctx.save();
+    ctx.translate(W / 2, 960); ctx.scale(ease.outBack(kv), ease.outBack(kv)); ctx.rotate(-0.1);
+    ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 30;
+    ctx.beginPath(); ctx.arc(0, 0, 96, 0, Math.PI * 2); ctx.fillStyle = gold(-96, 96); ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = 6; ctx.strokeStyle = '#141414'; ctx.stroke();
+    ctx.font = F(900, 84); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'ltr';
+    ctx.fillStyle = '#141414'; ctx.fillText('VS', 0, 8);
+    ctx.restore();
+  }
+}
+
+async function drawMain(s, lt, src) {
+  const img = await frame(src);
+  let cam = zoomAt(src);
+  if (s.id === 'freeze') {
+    // Freeze-frame punch-in on his face with a decaying shake.
+    const r = rng(Math.floor(lt * 30) + 7), amp = 18 * Math.max(0, 1 - lt / 0.45);
+    cam = {
+      scale: lerp(1, 1.38, ease.outCubic(clamp(lt / 0.22))) + 0.03 * lt,
+      cx: 0.365, cy: 0.39, dx: (r() - 0.5) * 2 * amp, dy: (r() - 0.5) * 2 * amp,
+    };
+  }
+  withCam(cam, () => {
+    ctx.filter = GRADE[s.id];
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, W, H);
+    ctx.filter = 'none';
+    if (s.id === 'man') drawSparkles(src);
+  });
+  vignette(s.id === 'freeze' ? 0.55 : 0.3);
+}
+
+async function drawMelon(lt, src) {
+  const img = await frame(src);
+  drawBlurred(img);
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  ctx.fillRect(0, 0, W, H);
+  const k = ease.outCubic(clamp(lt / 0.45));
+  const w = lerp(W, W * 0.76, k), h = lerp(H, H * 0.76, k), x = (W - w) / 2, y = lerp(0, 392, k);
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 50 * k;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 40 * k);
+  ctx.fillStyle = '#000'; ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.save(); ctx.clip();
+  ctx.filter = GRADE.melon;
+  ctx.drawImage(img, x, y, w, h);
+  ctx.restore();
+  ctx.globalAlpha = k; ctx.lineWidth = 6; ctx.strokeStyle = gold(y, y + h); ctx.stroke();
+  ctx.restore();
+}
+
+async function drawEnd(lt, s) {
+  const img = await frame(s.still);
+  drawBlurred(img);
+  ctx.fillStyle = 'rgba(8,8,12,.62)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.direction = 'rtl'; ctx.textBaseline = 'alphabetic';
+
+  const k0 = ease.outBack(clamp(lt / 0.35));
+  ctx.save();
+  ctx.translate(W / 2, 470); ctx.scale(k0, k0);
+  ctx.font = F(900, 108); ctx.textAlign = 'center';
+  ctx.fillStyle = gold(-90, 10);
+  ctx.fillText('نتیجه نهایی', 0, 0);
+  ctx.restore();
+
+  const row = (delay, y, label, value, win) => {
+    const k = ease.outCubic(clamp((lt - delay) / 0.35));
+    if (k <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = k; ctx.translate((1 - k) * 300, 0);
+    ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 30;
+    ctx.beginPath(); ctx.roundRect(90, y, 900, 240, 40);
+    ctx.fillStyle = win ? 'rgba(34,28,14,.94)' : 'rgba(20,20,26,.9)'; ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = win ? 6 : 3; ctx.strokeStyle = win ? gold(y, y + 240) : 'rgba(255,255,255,.25)'; ctx.stroke();
+    ctx.textAlign = 'right';
+    ctx.font = F(700, 50); ctx.fillStyle = win ? '#f3c54a' : '#cfcfd6';
+    ctx.fillText(label, 930, y + 88);
+    ctx.font = F(900, 70); ctx.fillStyle = '#fff';
+    ctx.fillText(value, 930, y + 190);
+    ctx.restore();
+  };
+  row(0.2, 640, 'لاکچری اونا 🏎️', '۳ میلیون دلار', false);
+  row(0.45, 930, 'لاکچری ما 🚽', 'یه آفتابه + یه هندونه 🍉', true);
+
+  // Winner badge and a confetti burst from it.
+  const tb = lt - 1.0;
+  if (tb > 0) {
+    const r = rng(9);
+    for (let i = 0; i < 70; i++) {
+      const vx = (r() - 0.5) * 1500, vy = -500 - r() * 1100, spin = (r() - 0.5) * 18, sz = 10 + r() * 14;
+      const col = ['#ffd56a', '#ffffff', '#ff5b6e', '#4fd18b', '#5bb8ff'][i % 5];
+      const x = 250 + vx * tb, y = 930 + vy * tb + 0.5 * 2600 * tb * tb;
+      if (y > H + 40) continue;
+      ctx.save();
+      ctx.translate(x, y); ctx.rotate(spin * tb + i);
+      ctx.globalAlpha = clamp(2.2 - tb);
+      ctx.fillStyle = col; ctx.fillRect(-sz / 2, -sz / 4, sz, sz / 2);
+      ctx.restore();
+    }
+    const kb = ease.outBack(clamp(tb / 0.3));
+    ctx.save();
+    ctx.translate(230, 930); ctx.rotate(-0.14); ctx.scale(kb, kb);
+    ctx.font = F(900, 56); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText('🏆 برنده!').width + 60;
+    ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 20;
+    ctx.beginPath(); ctx.roundRect(-w / 2, -50, w, 100, 50);
+    ctx.fillStyle = gold(-50, 50); ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = '#1a1406'; ctx.fillText('🏆 برنده!', 0, 6);
+    ctx.restore();
+  }
+
+  // Credit the original creators (their handles also stay watermarked in the footage).
+  const kc = clamp((lt - 1.3) / 0.3);
+  if (kc > 0) {
+    ctx.save();
+    ctx.globalAlpha = kc * 0.8;
+    ctx.font = F(400, 38); ctx.fillStyle = '#fff';
+    const a = 'ویدیو از:', b = '@hasan.emdadi1 · @justpanix', gap = 16, y = 1300;
+    ctx.direction = 'rtl'; const aw = ctx.measureText(a).width;
+    ctx.direction = 'ltr'; const bw = ctx.measureText(b).width;
+    const left = W / 2 - (aw + gap + bw) / 2;
+    ctx.textAlign = 'left'; ctx.fillText(b, left, y);
+    ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.fillText(a, left + bw + gap + aw, y);
+    ctx.restore();
+  }
+}
+
+// --- overlays ------------------------------------------------------------
+const HEADERS = { woman: 'لاکچری اونا 🏎️', man: 'لاکچری ما 🚽', freeze: 'لاکچری ما 🚽', man2: 'لاکچری ما 🚽', melon: 'جشن تحویل 🎉' };
+// His head sits at the top of frame, so in his shots the bar tucks into a corner pill.
+const TUCKED = new Set(['man', 'freeze', 'man2']);
+function drawHeader(t, s) {
+  // Full width, the bar also hides the caption burned into the original edit (source y 80–172).
+  const text = HEADERS[s.id];
+  if (!text) return;
+  let since = s.start;
+  for (let i = TL.shots.indexOf(s) - 1; i >= 0 && HEADERS[TL.shots[i].id] === text; i--) since = TL.shots[i].start;
+  const lt = t - since, k = Math.max(0.001, ease.outBack(clamp(lt / 0.24)));
+  const tuck = TUCKED.has(s.id) ? ease.inOut(clamp((lt - 0.45) / 0.35)) : 0;
+  ctx.font = F(900, 60);
+  const pillW = ctx.measureText(text).width + 76;
+  const x = 40, y = lerp(124, 64, tuck), w = lerp(1000, pillW, tuck), h = lerp(222, 112, tuck), cx = x + w / 2;
+  ctx.save();
+  ctx.translate(cx, y + h / 2); ctx.scale(1, k); ctx.translate(-cx, -(y + h / 2));
+  ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, lerp(46, 56, tuck));
+  const bg = ctx.createLinearGradient(0, y, 0, y + h);
+  bg.addColorStop(0, '#1d1d24'); bg.addColorStop(1, '#08080b');
+  ctx.fillStyle = bg; ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowOffsetY = 0;
+  ctx.lineWidth = lerp(5, 4, tuck); ctx.strokeStyle = gold(y, y + h); ctx.stroke();
+  // light sweep across the bar
+  ctx.save();
+  ctx.clip();
+  const sx = ((lt * 700) % 2400) - 500;
+  const sh = ctx.createLinearGradient(sx, 0, sx + 260, 0);
+  sh.addColorStop(0, 'rgba(255,240,200,0)'); sh.addColorStop(0.5, 'rgba(255,240,200,.16)'); sh.addColorStop(1, 'rgba(255,240,200,0)');
+  ctx.fillStyle = sh;
+  ctx.setTransform(1, 0, -0.5, 1, 0, 0);
+  ctx.fillRect(sx, 0, 260 + 400, H);
+  ctx.restore();
+  ctx.font = F(900, lerp(100, 60, tuck)); ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const fit = Math.min(1, (w - lerp(90, 60, tuck)) / ctx.measureText(text).width);
+  ctx.translate(cx, y + h / 2 + lerp(8, 5, tuck)); ctx.scale(fit, fit);
+  ctx.fillStyle = gold(-50, 50);
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+function drawCard(c, src) {
+  const tin = src - c.from, tout = c.to - src;
+  if (tin < 0 || tout < 0) return;
+  const off = (1 - ease.outBack(clamp(tin / 0.45))) * 1150 + ease.inCubic(clamp(1 - tout / 0.3)) * 1150;
+  const two = !!c.them, R = 960, h = two ? 240 : 170, Y = two ? 1320 : 1380, TR = R - 172;
+  const us = c.count ? `${fa(Math.round(c.count * ease.outCubic(clamp((tin - 0.15) / 0.9))))} دلار` : c.us;
+  ctx.save();
+  ctx.translate(off, 0);
+  ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+  const pUs = two ? 'ما: ' : '', pThem = 'اونا: ';
+  ctx.font = F(900, 58);
+  const fit = Math.min(1, (R - 80 - 172 - 50) / ctx.measureText(pUs + c.us).width);
+  const usW = ctx.measureText(pUs + c.us).width * fit;
+  ctx.font = F(400, 44);
+  const themW = two ? ctx.measureText(pThem + c.them).width : 0;
+  ctx.font = F(700, 36);
+  const w = Math.max(520, 172 + Math.max(usW, themW, ctx.measureText(c.label).width) + 56);
+
+  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 30; ctx.shadowOffsetY = 10;
+  ctx.beginPath(); ctx.roundRect(R - w, Y, w, h, 34);
+  ctx.fillStyle = 'rgba(14,14,18,.86)'; ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowOffsetY = 0;
+  ctx.lineWidth = 3; ctx.strokeStyle = gold(Y, Y + h); ctx.stroke();
+
+  const ix = R - 88, iy = Y + h / 2;
+  ctx.beginPath(); ctx.arc(ix, iy, 60, 0, Math.PI * 2);
+  ctx.fillStyle = gold(iy - 60, iy + 60); ctx.fill();
+  ctx.font = '62px "Noto Color Emoji"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(c.icon, ix, iy + 4);
+  ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+
+  ctx.font = F(700, 36); ctx.fillStyle = '#f3c54a';
+  ctx.fillText(c.label, TR, Y + 58);
+  if (!two) {
+    ctx.font = F(900, 58 * fit); ctx.fillStyle = '#fff';
+    ctx.fillText(us, TR, Y + 132);
+    ctx.restore();
+    return;
+  }
+  // "them" row first, struck out, then "us" lands.
+  ctx.font = F(400, 44); ctx.fillStyle = 'rgba(255,255,255,.62)';
+  const pw = ctx.measureText(pThem).width, vw = ctx.measureText(c.them).width;
+  ctx.fillText(pThem, TR, Y + 116);
+  ctx.fillText(c.them, TR - pw, Y + 116);
+  const ks = c.strike === false ? 0 : ease.outCubic(clamp((tin - 0.35) / 0.25));
+  if (ks > 0) {
+    ctx.strokeStyle = '#ff4b4b'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(TR - pw + 4, Y + 103); ctx.lineTo(TR - pw + 4 - (vw + 8) * ks, Y + 103); ctx.stroke();
+  }
+  const ku = ease.outBack(clamp((tin - 0.55) / 0.3));
+  if (ku > 0) {
+    ctx.save();
+    ctx.translate(TR, Y + 200); ctx.scale(ku, ku);
+    ctx.font = F(900, 58 * fit);
+    const p2 = ctx.measureText(pUs).width;
+    ctx.fillStyle = gold(-50, 0); ctx.fillText(pUs, 0, 0);
+    ctx.fillStyle = '#fff'; ctx.fillText(us, -p2, 0);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawStamp(lt) {
+  const k = clamp((lt - 0.18) / 0.16);
+  if (k <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = k;
+  ctx.translate(540, 1110); ctx.rotate(-0.17);
+  const sc = lerp(2.6, 1, ease.outCubic(k)); ctx.scale(sc, sc);
+  ctx.font = F(900, 110); ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const text = 'فول آپشن ✅', w = ctx.measureText(text).width + 90, h = 190;
+  ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, 26);
+  ctx.fillStyle = 'rgba(255,255,255,.93)'; ctx.fill();
+  ctx.lineWidth = 12; ctx.strokeStyle = '#e0262b'; ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(-w / 2 + 18, -h / 2 + 18, w - 36, h - 36, 14);
+  ctx.lineWidth = 4; ctx.stroke();
+  ctx.fillStyle = '#e0262b'; ctx.fillText(text, 0, 8);
+  ctx.restore();
+}
+
+// --- transitions ---------------------------------------------------------
+const buf = Object.assign(document.createElement('canvas'), { width: W, height: H });
+function glitch(amount, seed) {
+  const b = buf.getContext('2d');
+  b.drawImage(cv, 0, 0);
+  const r = rng(seed);
+  for (let i = 0; i < 16; i++) {
+    const y = r() * H, h = 16 + r() * 150, dx = (r() - 0.5) * 300 * amount;
+    ctx.drawImage(buf, 0, y, W, h, dx, y, W, h);
+  }
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.globalAlpha = 0.5 * amount;
+  ctx.fillStyle = r() < 0.5 ? '#ff2a6d' : '#05d9e8';
+  for (let i = 0; i < 5; i++) ctx.fillRect(0, r() * H, W, 8 + r() * 40);
+  ctx.restore();
+}
+function flash(t, at, dur, max = 1, pre = 0) {
+  const d = t - at;
+  let a = 0;
+  if (d >= 0 && d < dur) a = (1 - d / dur) ** 2;
+  else if (pre && d < 0 && d > -pre) a = 1 + d / pre;
+  if (a > 0) { ctx.fillStyle = `rgba(255,255,255,${max * a})`; ctx.fillRect(0, 0, W, H); }
+}
+function transitions(t) {
+  const cut = shot('man').start, d = t - cut;
+  if (d > -0.12 && d < 0.2) glitch(1 - Math.abs(d) / 0.2, Math.round(t * 30));
+  flash(t, shot('woman').start, 0.28, 1, 0.1);
+  flash(t, cut, 0.18, 0.7);
+  flash(t, shot('freeze').start, 0.22, 0.85);
+  flash(t, shot('melon').start, 0.2, 0.6);
+  flash(t, shot('end').start, 0.25, 0.5);
+}
+
+// --- frame ---------------------------------------------------------------
+function shotAt(t) {
+  let s = TL.shots[0];
+  for (const x of TL.shots) if (t >= x.start - 1e-6) s = x;
+  return s;
+}
+window.renderAt = async t => {
+  const s = shotAt(t), lt = t - s.start;
+  const src = s.src ? Math.min(s.src[0] + lt, s.src[1]) : null;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.filter = 'none';
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  if (s.id === 'title') await drawTitle(lt);
+  else if (s.id === 'end') await drawEnd(lt, s);
+  else if (s.id === 'melon') await drawMelon(lt, src);
+  else await drawMain(s, lt, src);
+  drawHeader(t, s);
+  if (src != null) for (const c of TL.cards) drawCard(c, src);
+  if (s.id === 'freeze') drawStamp(lt);
+  transitions(t);
+};
+
+if (!RENDER) {
+  window.ready.then(async () => {
+    const at = new URLSearchParams(location.search).get('t');
+    if (at) return window.renderAt(Number(at));
+    const t0 = performance.now();
+    for (;;) {
+      await window.renderAt(((performance.now() - t0) / 1000) % window.DURATION);
+      await new Promise(requestAnimationFrame);
+    }
+  });
+}
+</script>
+</body>
+</html>
