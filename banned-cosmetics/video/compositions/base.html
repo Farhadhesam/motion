@@ -1,0 +1,69 @@
+<template>
+  <style>
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Regular.woff2') format('woff2'); font-weight: 400; }
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Bold.woff2') format('woff2'); font-weight: 700; }
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Black.woff2') format('woff2'); font-weight: 900; }
+    #root { position: absolute; inset: 0; font-family: Vazirmatn, sans-serif; color: #ffffff; direction: rtl; }
+    #root .box { position: absolute; left: 100px; width: 860px; text-align: center; }
+    #root .w { display: inline-block; }
+    #root .hero { position: absolute; border-radius: 44px; overflow: hidden; box-shadow: 0 0 0 3px rgba(244,199,195,0.35), 0 24px 90px rgba(229,56,59,0.28); }
+    #root .hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    #root .cat { font-size: 72px; font-weight: 900; line-height: 1.25; }
+    #root .pill { position: absolute; height: 52px; border-radius: 26px; background: rgba(229,56,59,0.16); border: 2px solid rgba(255,77,80,0.6);
+      color: #FF6B6E; font-size: 30px; font-weight: 700; line-height: 48px; text-align: center; }
+    #root .row { position: absolute; left: 100px; width: 860px; height: 142px; display: flex; align-items: center; gap: 22px; padding: 0 24px;
+      background: #231A29; border: 2px solid #3B2D44; border-radius: 28px; }
+    #root .num { flex: none; width: 68px; height: 68px; border-radius: 34px; background: #E5383B; font-size: 36px; font-weight: 900; line-height: 68px; text-align: center; }
+    #root .txt { flex: 1; min-width: 0; text-align: right; }
+    #root .type { font-size: 42px; font-weight: 700; line-height: 1.3; }
+    #root .brand { font-family: Oswald, sans-serif; font-weight: 600; font-size: 32px; letter-spacing: 0.5px; line-height: 1.25; color: #F4C7C3; text-align: right; }
+    #root .stamp { flex: none; font-size: 28px; font-weight: 900; line-height: 1.35; color: #FF4D50; border: 4px solid #FF4D50; border-radius: 12px; padding: 2px 12px; }
+  </style>
+  <div id="root" data-composition-id="base" data-width="1080" data-height="1920">
+    <div class="hero" id="base-hero" style="left: 400px; top: 196px; width: 260px; height: 260px"><img src="assets/img/cat-base.jpg" alt="" /></div>
+    <div class="box cat" id="base-title" style="top: 478px"><span class="w">کرم</span> <span class="w">پودر</span> <span class="w">و</span> <span class="w">پرایمر</span></div>
+    <div class="pill" id="base-pill" style="left: 400px; width: 260px; top: 582px">۴ محصول غیرمجاز</div>
+    <div class="row" id="base-r1" style="top: 670px">
+      <div class="num">۱</div>
+      <div class="txt"><div class="type">کرم پودر</div><div class="brand" dir="ltr"><span class="bn">GABRINI</span> – MAKE UP COVER</div></div>
+      <div class="stamp" id="base-s1">غیرمجاز</div>
+    </div>
+    <div class="row" id="base-r2" style="top: 828px">
+      <div class="num">۲</div>
+      <div class="txt"><div class="type">کرم پودر مات</div><div class="brand" dir="ltr"><span class="bn">GABRINI</span> – MAKE UP COVER</div></div>
+      <div class="stamp" id="base-s2">غیرمجاز</div>
+    </div>
+    <div class="row" id="base-r3" style="top: 986px">
+      <div class="num">۳</div>
+      <div class="txt"><div class="type">پرایمر</div><div class="brand" dir="ltr"><span class="bn">GABRINI</span> – FOUNDATION PRIMER</div></div>
+      <div class="stamp" id="base-s3">غیرمجاز</div>
+    </div>
+    <div class="row" id="base-r4" style="top: 1144px">
+      <div class="num">۴</div>
+      <div class="txt"><div class="type">کرم پودر</div><div class="brand" dir="ltr">LOREAL</div></div>
+      <div class="stamp" id="base-s4">غیرمجاز</div>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#base-hero", { opacity: 0, scale: 0.82, filter: "blur(10px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.55, ease: "expo.out" }, 0);
+    tl.fromTo("#base-title .w", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.15, ease: "expo.out", stagger: 0.08 }, 0.15);
+    tl.fromTo("#base-pill", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "expo.out" }, 0.4);
+    tl.fromTo("#base-r1", { opacity: 0, y: 70, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, 0.9);
+    tl.fromTo("#base-s1", { opacity: 0, scale: 1.7, rotation: -22 }, { opacity: 1, scale: 1, rotation: -10, duration: 0.22, ease: "power4.in" }, 1.35);
+    tl.fromTo("#base-r1", { x: 0 }, { x: 6, duration: 0.04, yoyo: true, repeat: 3, ease: "none" }, 1.57);
+    tl.fromTo("#base-r2", { opacity: 0, y: 70, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, 2.3);
+    tl.fromTo("#base-s2", { opacity: 0, scale: 1.7, rotation: -22 }, { opacity: 1, scale: 1, rotation: -10, duration: 0.22, ease: "power4.in" }, 2.75);
+    tl.fromTo("#base-r2", { x: 0 }, { x: 6, duration: 0.04, yoyo: true, repeat: 3, ease: "none" }, 2.97);
+    tl.fromTo("#base-r3", { opacity: 0, y: 70, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, 3.7);
+    tl.fromTo("#base-s3", { opacity: 0, scale: 1.7, rotation: -22 }, { opacity: 1, scale: 1, rotation: -10, duration: 0.22, ease: "power4.in" }, 4.15);
+    tl.fromTo("#base-r3", { x: 0 }, { x: 6, duration: 0.04, yoyo: true, repeat: 3, ease: "none" }, 4.37);
+    tl.fromTo("#base-r4", { opacity: 0, y: 70, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, 5.1);
+    tl.fromTo("#base-s4", { opacity: 0, scale: 1.7, rotation: -22 }, { opacity: 1, scale: 1, rotation: -10, duration: 0.22, ease: "power4.in" }, 5.55);
+    tl.fromTo("#base-r4", { x: 0 }, { x: 6, duration: 0.04, yoyo: true, repeat: 3, ease: "none" }, 5.77);
+    tl.fromTo("#base-r1 .bn, #base-r2 .bn, #base-r3 .bn", { color: "#F4C7C3" }, { color: "#FF4D50", duration: 0.2, ease: "power2.out" }, 6.2);
+    tl.to("#base-r1 .bn, #base-r2 .bn, #base-r3 .bn", { color: "#F4C7C3", duration: 0.5, ease: "power2.inOut" }, 6.8);
+    tl.to(["#base-hero", "#base-title", "#base-pill", "#base-r1", "#base-r2", "#base-r3", "#base-r4"], { opacity: 0, filter: "blur(10px)", duration: 0.22, ease: "power3.in", stagger: 0.03 }, 7.58);
+    window.__timelines["base"] = tl;
+  </script>
+</template>

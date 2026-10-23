@@ -1,0 +1,38 @@
+<template>
+  <style>
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Regular.woff2') format('woff2'); font-weight: 400; }
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Bold.woff2') format('woff2'); font-weight: 700; }
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Black.woff2') format('woff2'); font-weight: 900; }
+    #root { position: absolute; inset: 0; font-family: Vazirmatn, sans-serif; color: #ffffff; direction: rtl; }
+    #root .box { position: absolute; left: 100px; width: 860px; text-align: center; }
+    #root .w { display: inline-block; }
+    #out-icon { position: absolute; left: 430px; top: 370px; width: 200px; height: 200px; }
+    #out-l1 { top: 640px; font-size: 86px; font-weight: 900; line-height: 1.4; }
+    #out-l1 .p { color: #F4C7C3; }
+    #out-src { top: 940px; font-size: 40px; font-weight: 400; color: #CFC3CC; }
+    #out-tri { position: absolute; left: 470px; top: 1060px; width: 120px; height: 106px; }
+  </style>
+  <div id="root" data-composition-id="outro" data-width="1080" data-height="1920">
+
+    <div id="out-icon"><svg viewBox="0 0 200 200" width="200" height="200" aria-hidden="true">
+      <path d="M20 96 L180 24 L140 176 L96 128 Z" fill="rgba(244,199,195,0.16)" stroke="#F4C7C3" stroke-width="8" stroke-linejoin="round"/>
+      <path d="M96 128 L180 24 M96 128 L92 172 L118 148" fill="none" stroke="#F4C7C3" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg></div>
+    <div class="box" id="out-l1"><span class="w">این</span> <span class="w">هشدار</span> <span class="w">را</span><br/><span class="w">برای</span> <span class="w p">عزیزانتان</span> <span class="w">بفرستید</span></div>
+    <div class="box" id="out-src">منبع: سازمان غذا و دارو</div>
+    <div id="out-tri"><svg viewBox="0 0 240 212" width="120" height="106" aria-hidden="true">
+      <path d="M120 10 C128 10 134 14 138 21 L232 182 C240 196 230 206 216 206 L24 206 C10 206 0 196 8 182 L102 21 C106 14 112 10 120 10 Z" fill="#FFB703"/>
+      <rect x="108" y="64" width="24" height="86" rx="12" fill="#16111A"/>
+      <circle cx="120" cy="176" r="15" fill="#16111A"/>
+    </svg></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+
+    tl.fromTo("#out-icon", { opacity: 0, x: 120, y: 80, rotation: 10 }, { opacity: 1, x: 0, y: 0, rotation: 0, duration: 0.6, ease: "expo.out" }, 0);
+    tl.fromTo("#out-l1 .w", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.15, ease: "expo.out", stagger: 0.08 }, 0.2);
+    tl.fromTo("#out-src", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "expo.out" }, 0.9);
+    tl.fromTo("#out-tri", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.4, ease: "expo.out" }, 1.1);
+    window.__timelines["outro"] = tl;
+  </script>
+</template>

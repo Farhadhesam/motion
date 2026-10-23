@@ -1,0 +1,98 @@
+<template>
+  <style>
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Regular.woff2') format('woff2'); font-weight: 400; }
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Bold.woff2') format('woff2'); font-weight: 700; }
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Black.woff2') format('woff2'); font-weight: 900; }
+    #root { position: absolute; inset: 0; font-family: Vazirmatn, sans-serif; color: #ffffff; direction: rtl; }
+    #root .box { position: absolute; left: 100px; width: 860px; text-align: center; }
+    #root .w { display: inline-block; }
+    #sum-title { top: 190px; font-size: 76px; font-weight: 900; line-height: 1.25; }
+    #sum-title .red { color: #FF4D50; }
+    #sum-grid { position: absolute; left: 100px; top: 330px; width: 860px; display: grid; grid-template-columns: 423px 423px; gap: 14px 14px; }
+    #root .chip { position: relative; height: 100px; display: flex; align-items: center; gap: 14px; padding: 0 18px; background: #231A29; border: 2px solid #3B2D44; border-radius: 22px; }
+    #root .cn { flex: none; width: 46px; height: 46px; border-radius: 23px; background: #E5383B; font-size: 28px; font-weight: 900; line-height: 46px; text-align: center; }
+    #root .ct { flex: 1; min-width: 0; text-align: right; }
+    #root .ctype { font-size: 30px; font-weight: 700; line-height: 1.3; }
+    #root .cbrand { font-family: Oswald, sans-serif; font-weight: 600; font-size: 28px; line-height: 1.2; color: #F4C7C3; text-align: right; }
+    #root .strike { position: absolute; left: 14px; right: 80px; top: 47px; height: 6px; border-radius: 3px; background: #FF3B3F; transform-origin: 100% 50%; }
+    #sum-foot { top: 1050px; font-size: 36px; font-weight: 400; color: #CFC3CC; }
+  </style>
+  <div id="root" data-composition-id="summary" data-width="1080" data-height="1920">
+
+    <div class="box" id="sum-title">این ۱۲ محصول را <span class="red">نخرید</span></div>
+    <div id="sum-grid">
+      <div class="chip" id="sum-c1">
+        <div class="cn">۱</div>
+        <div class="ct"><div class="ctype">کرم پودر</div><div class="cbrand" dir="ltr">GABRINI</div></div>
+        <i class="strike" id="sum-x1" data-layout-allow-occlusion></i>
+      </div>
+      <div class="chip" id="sum-c2">
+        <div class="cn">۲</div>
+        <div class="ct"><div class="ctype">کرم پودر مات</div><div class="cbrand" dir="ltr">GABRINI</div></div>
+        <i class="strike" id="sum-x2" data-layout-allow-occlusion></i>
+      </div>
+      <div class="chip" id="sum-c3">
+        <div class="cn">۳</div>
+        <div class="ct"><div class="ctype">پرایمر</div><div class="cbrand" dir="ltr">GABRINI</div></div>
+        <i class="strike" id="sum-x3" data-layout-allow-occlusion></i>
+      </div>
+      <div class="chip" id="sum-c4">
+        <div class="cn">۴</div>
+        <div class="ct"><div class="ctype">کرم پودر</div><div class="cbrand" dir="ltr">LOREAL</div></div>
+        <i class="strike" id="sum-x4" data-layout-allow-occlusion></i>
+      </div>
+      <div class="chip" id="sum-c5">
+        <div class="cn">۵</div>
+        <div class="ct"><div class="ctype">رژگونه</div><div class="cbrand" dir="ltr">DODO GIRL</div></div>
+        <i class="strike" id="sum-x5" data-layout-allow-occlusion></i>
+      </div>
+      <div class="chip" id="sum-c6">
+        <div class="cn">۶</div>
+        <div class="ct"><div class="ctype">رژگونه مایع</div><div class="cbrand" dir="ltr">MODA GOLD</div></div>
+        <i class="strike" id="sum-x6" data-layout-allow-occlusion></i>
+      </div>
+      <div class="chip" id="sum-c7">
+        <div class="cn">۷</div>
+        <div class="ct"><div class="ctype">رژگونه تراکوتا</div><div class="cbrand" dir="ltr">BARISH</div></div>
+        <i class="strike" id="sum-x7" data-layout-allow-occlusion></i>
+      </div>
+      <div class="chip" id="sum-c8">
+        <div class="cn">۸</div>
+        <div class="ct"><div class="ctype">رژگونه</div><div class="cbrand" dir="ltr">ARTSKIN</div></div>
+        <i class="strike" id="sum-x8" data-layout-allow-occlusion></i>
+      </div>
+      <div class="chip" id="sum-c9">
+        <div class="cn">۹</div>
+        <div class="ct"><div class="ctype">کانسیلر</div><div class="cbrand" dir="ltr">JULIUS BEAUTY</div></div>
+        <i class="strike" id="sum-x9" data-layout-allow-occlusion></i>
+      </div>
+      <div class="chip" id="sum-c10">
+        <div class="cn">۱۰</div>
+        <div class="ct"><div class="ctype">کانتور صورت</div><div class="cbrand" dir="ltr">JULIUS</div></div>
+        <i class="strike" id="sum-x10" data-layout-allow-occlusion></i>
+      </div>
+      <div class="chip" id="sum-c11">
+        <div class="cn">۱۱</div>
+        <div class="ct"><div class="ctype">کرم جوان‌ساز</div><div class="cbrand" dir="ltr">MATIA</div></div>
+        <i class="strike" id="sum-x11" data-layout-allow-occlusion></i>
+      </div>
+      <div class="chip" id="sum-c12">
+        <div class="cn">۱۲</div>
+        <div class="ct"><div class="ctype">کرم آنتی‌اکسیدان</div><div class="cbrand" dir="ltr">BIOAQUA</div></div>
+        <i class="strike" id="sum-x12" data-layout-allow-occlusion></i>
+      </div>
+    </div>
+    <div class="box" id="sum-foot">برای ذخیره، از این صفحه اسکرین‌شات بگیرید</div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+
+    tl.fromTo("#sum-title", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "expo.out" }, 0);
+    tl.fromTo("#sum-grid .chip", { opacity: 0, scale: 0.86 }, { opacity: 1, scale: 1, duration: 0.35, ease: "expo.out", stagger: 0.06 }, 0.3);
+    tl.fromTo("#sum-grid .strike", { scaleX: 0 }, { scaleX: 1, duration: 0.18, ease: "power2.out", stagger: 0.05 }, 1.4);
+    tl.to("#sum-grid .chip", { borderColor: "#7A2A33", duration: 0.2, stagger: 0.05 }, 1.45);
+    tl.fromTo("#sum-foot", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "expo.out" }, 2.2);
+    tl.to(["#sum-title", "#sum-grid", "#sum-foot"], { opacity: 0, filter: "blur(10px)", duration: 0.25, ease: "power3.in" }, 5.2);
+    window.__timelines["summary"] = tl;
+  </script>
+</template>

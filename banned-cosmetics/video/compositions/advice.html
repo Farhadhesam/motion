@@ -1,0 +1,36 @@
+<template>
+  <style>
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Regular.woff2') format('woff2'); font-weight: 400; }
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Bold.woff2') format('woff2'); font-weight: 700; }
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Black.woff2') format('woff2'); font-weight: 900; }
+    #root { position: absolute; inset: 0; font-family: Vazirmatn, sans-serif; color: #ffffff; direction: rtl; }
+    #root .box { position: absolute; left: 100px; width: 860px; text-align: center; }
+    #root .w { display: inline-block; }
+    #adv-icon { position: absolute; left: 420px; top: 330px; width: 220px; height: 220px; }
+    #adv-l1 { top: 640px; font-size: 68px; font-weight: 700; line-height: 1.5; }
+    #adv-l1 .g { color: #5BE39A; }
+    #adv-l2 { top: 900px; font-size: 52px; font-weight: 700; color: #F4C7C3; }
+  </style>
+  <div id="root" data-composition-id="advice" data-width="1080" data-height="1920">
+
+    <div id="adv-icon"><svg viewBox="0 0 220 220" width="220" height="220" aria-hidden="true">
+      <rect x="10" y="10" width="200" height="200" rx="48" fill="rgba(46,204,113,0.14)" stroke="#2ECC71" stroke-width="8"/>
+      <rect x="92" y="50" width="36" height="120" rx="8" fill="#2ECC71"/>
+      <rect x="50" y="92" width="120" height="36" rx="8" fill="#2ECC71"/>
+    </svg></div>
+    <div class="box" id="adv-l1"><span class="w">فقط</span> <span class="w">از</span> <span class="w">داروخانه‌ها</span> <span class="w">و</span><br/><span class="w g">فروشگاه‌های</span> <span class="w g">معتبر</span> <span class="w">خرید</span> <span class="w">کنید</span></div>
+    <div class="box" id="adv-l2"><svg viewBox="0 0 60 60" width="56" height="56" aria-hidden="true" style="vertical-align: -10px">
+      <circle cx="25" cy="25" r="17" fill="none" stroke="#F4C7C3" stroke-width="6"/>
+      <path d="M38 38 L54 54" stroke="#F4C7C3" stroke-width="7" stroke-linecap="round"/>
+    </svg> برچسب اصالت کالا را بررسی کنید</div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+
+    tl.fromTo("#adv-icon", { opacity: 0, scale: 0.7, rotation: -8 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.55, ease: "back.out(1.4)" }, 0);
+    tl.fromTo("#adv-l1 .w", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.15, ease: "expo.out", stagger: 0.08 }, 0.25);
+    tl.fromTo("#adv-l2", { opacity: 0, filter: "blur(8px)", y: 20 }, { opacity: 1, filter: "blur(0px)", y: 0, duration: 0.35, ease: "expo.out" }, 1.0);
+    tl.to(["#adv-icon", "#adv-l1", "#adv-l2"], { opacity: 0, filter: "blur(10px)", y: -30, duration: 0.25, ease: "power3.in" }, 3.7);
+    window.__timelines["advice"] = tl;
+  </script>
+</template>

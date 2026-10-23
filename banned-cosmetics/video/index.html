@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fa" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: #16111A; }
+      #root { position: relative; width: 100%; height: 100%; }
+      #ground { position: absolute; inset: 0;
+        background:
+          radial-gradient(ellipse 80% 40% at 50% 30%, rgba(244,199,195,0.10) 0%, rgba(244,199,195,0) 70%),
+          radial-gradient(ellipse 90% 35% at 50% 100%, rgba(229,56,59,0.16) 0%, rgba(229,56,59,0) 70%),
+          #16111A; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="49" data-width="1080" data-height="1920">
+      <div id="ground" data-layout-ignore></div>
+      <div id="hook" data-composition-id="hook" data-composition-src="compositions/hook.html" data-start="0" data-duration="3.5"
+        data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+      <div id="source" data-composition-id="source" data-composition-src="compositions/source.html" data-start="3.5" data-duration="5.5"
+        data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+      <div id="count" data-composition-id="count" data-composition-src="compositions/count.html" data-start="9" data-duration="2.5"
+        data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+      <div id="base" data-composition-id="base" data-composition-src="compositions/base.html" data-start="11.5" data-duration="8"
+        data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+      <div id="blush" data-composition-id="blush" data-composition-src="compositions/blush.html" data-start="19.5" data-duration="7.5"
+        data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+      <div id="conceal" data-composition-id="conceal" data-composition-src="compositions/conceal.html" data-start="27" data-duration="4.5"
+        data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+      <div id="care" data-composition-id="care" data-composition-src="compositions/care.html" data-start="31.5" data-duration="4.5"
+        data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+      <div id="summary" data-composition-id="summary" data-composition-src="compositions/summary.html" data-start="36" data-duration="5.5"
+        data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+      <div id="advice" data-composition-id="advice" data-composition-src="compositions/advice.html" data-start="41.5" data-duration="4"
+        data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+      <div id="outro" data-composition-id="outro" data-composition-src="compositions/outro.html" data-start="45.5" data-duration="3.5"
+        data-track-index="1" data-track-kind="graphics" data-width="1080" data-height="1920"></div>
+
+      <!-- Narration (ElevenLabs): put the files in assets/audio/ and uncomment. See ../elevenlabs-prompts.md -->
+      <!-- <audio id="vo-01" src="assets/audio/vo-01.mp3" data-start="0.2" data-track-index="3" data-volume="1"></audio> -->
+      <!-- <audio id="vo-02" src="assets/audio/vo-02.mp3" data-start="3.7" data-track-index="3" data-volume="1"></audio> -->
+      <!-- <audio id="vo-03" src="assets/audio/vo-03.mp3" data-start="9.2" data-track-index="3" data-volume="1"></audio> -->
+      <!-- <audio id="vo-04" src="assets/audio/vo-04.mp3" data-start="11.9" data-track-index="3" data-volume="1"></audio> -->
+      <!-- <audio id="vo-05" src="assets/audio/vo-05.mp3" data-start="19.9" data-track-index="3" data-volume="1"></audio> -->
+      <!-- <audio id="vo-06" src="assets/audio/vo-06.mp3" data-start="27.3" data-track-index="3" data-volume="1"></audio> -->
+      <!-- <audio id="vo-07" src="assets/audio/vo-07.mp3" data-start="31.8" data-track-index="3" data-volume="1"></audio> -->
+      <!-- <audio id="vo-08" src="assets/audio/vo-08.mp3" data-start="36.3" data-track-index="3" data-volume="1"></audio> -->
+      <!-- <audio id="vo-09" src="assets/audio/vo-09.mp3" data-start="41.8" data-track-index="3" data-volume="1"></audio> -->
+      <!-- <audio id="vo-10" src="assets/audio/vo-10.mp3" data-start="45.7" data-track-index="3" data-volume="1"></audio> -->
+
+      <!-- Sound effects (ElevenLabs): stamps rotate between sfx-stamp-1..3 -->
+      <!-- <audio id="sfx-alarm" src="assets/audio/sfx-alarm.mp3" data-start="0.0" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-whoosh" src="assets/audio/sfx-whoosh.mp3" data-start="9.0" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-stamp-1" src="assets/audio/sfx-stamp-1.mp3" data-start="12.85" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-stamp-2" src="assets/audio/sfx-stamp-2.mp3" data-start="14.25" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-stamp-3" src="assets/audio/sfx-stamp-3.mp3" data-start="15.65" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-stamp-4" src="assets/audio/sfx-stamp-1.mp3" data-start="17.05" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-stamp-5" src="assets/audio/sfx-stamp-2.mp3" data-start="20.85" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-stamp-6" src="assets/audio/sfx-stamp-3.mp3" data-start="22.05" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-stamp-7" src="assets/audio/sfx-stamp-1.mp3" data-start="23.25" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-stamp-8" src="assets/audio/sfx-stamp-2.mp3" data-start="24.45" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-stamp-9" src="assets/audio/sfx-stamp-3.mp3" data-start="28.25" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-stamp-10" src="assets/audio/sfx-stamp-1.mp3" data-start="29.35" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-stamp-11" src="assets/audio/sfx-stamp-2.mp3" data-start="32.75" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-stamp-12" src="assets/audio/sfx-stamp-3.mp3" data-start="33.85" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-marker" src="assets/audio/sfx-marker.mp3" data-start="5.25" data-track-index="4" data-volume="0.8"></audio> -->
+      <!-- <audio id="sfx-impact" src="assets/audio/sfx-impact.mp3" data-start="37.4" data-track-index="4" data-volume="0.8"></audio> -->
+
+      <!-- Music bed (ElevenLabs Music), under the voice -->
+      <!-- <audio id="music" src="assets/audio/music.mp3" data-start="0" data-duration="49" data-track-index="5" data-volume="0.14" data-fade-out="2"></audio> -->
+    </div>
+    <script>
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>

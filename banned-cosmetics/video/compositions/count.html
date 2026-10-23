@@ -1,0 +1,36 @@
+<template>
+  <style>
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Regular.woff2') format('woff2'); font-weight: 400; }
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Bold.woff2') format('woff2'); font-weight: 700; }
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Black.woff2') format('woff2'); font-weight: 900; }
+    #root { position: absolute; inset: 0; font-family: Vazirmatn, sans-serif; color: #ffffff; direction: rtl; }
+    #root .box { position: absolute; left: 100px; width: 860px; text-align: center; }
+    #root .w { display: inline-block; }
+    #cnt-brush { position: absolute; left: 236px; top: 300px; width: 608px; height: 1080px; mix-blend-mode: screen; }
+    #cnt-num { top: 470px; font-size: 330px; font-weight: 900; line-height: 1.2; color: #F4C7C3; }
+    #cnt-line1 { top: 900px; font-size: 76px; font-weight: 900; }
+    #cnt-line1 .red { color: #FF4D50; }
+    #cnt-line2 { top: 1020px; font-size: 56px; font-weight: 400; color: #CFC3CC; }
+  </style>
+  <div id="root" data-composition-id="count" data-width="1080" data-height="1920">
+
+    <img id="cnt-brush" src="assets/img/brush.jpg" alt="" data-layout-ignore />
+    <div class="box" id="cnt-num">۰</div>
+    <div class="box" id="cnt-line1">محصول <span class="red">غیرمجاز</span></div>
+    <div class="box" id="cnt-line2">در ۴ دسته</div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+
+    tl.fromTo("#cnt-brush", { x: 1000, rotation: -12 }, { x: -1150, rotation: 8, duration: 0.95, ease: "power2.inOut" }, 0);
+    const fa = (n) => String(n).replace(/[0-9]/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
+    const num = document.querySelector("#cnt-num");
+    const c = { v: 0 };
+    tl.fromTo(c, { v: 0 }, { v: 12, duration: 0.8, ease: "power2.out", onUpdate: () => { num.textContent = fa(Math.round(c.v)); } }, 0.25);
+    tl.fromTo("#cnt-num", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "expo.out" }, 0.25);
+    tl.fromTo("#cnt-line1", { opacity: 0, filter: "blur(8px)", y: 24 }, { opacity: 1, filter: "blur(0px)", y: 0, duration: 0.35, ease: "expo.out" }, 0.55);
+    tl.fromTo("#cnt-line2", { opacity: 0, filter: "blur(8px)", y: 24 }, { opacity: 1, filter: "blur(0px)", y: 0, duration: 0.35, ease: "expo.out" }, 0.75);
+    tl.to(["#cnt-num", "#cnt-line1", "#cnt-line2"], { y: -160, opacity: 0, filter: "blur(14px)", duration: 0.25, ease: "power3.in" }, 2.2);
+    window.__timelines["count"] = tl;
+  </script>
+</template>

@@ -1,0 +1,51 @@
+<template>
+  <style>
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Regular.woff2') format('woff2'); font-weight: 400; }
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Bold.woff2') format('woff2'); font-weight: 700; }
+    @font-face { font-family: Vazirmatn; src: url('assets/fonts/Vazirmatn-Black.woff2') format('woff2'); font-weight: 900; }
+    #root { position: absolute; inset: 0; font-family: Vazirmatn, sans-serif; color: #ffffff; direction: rtl; }
+    #root .box { position: absolute; left: 100px; width: 860px; text-align: center; }
+    #root .w { display: inline-block; }
+    #root .hero { position: absolute; border-radius: 44px; overflow: hidden; box-shadow: 0 0 0 3px rgba(244,199,195,0.35), 0 24px 90px rgba(229,56,59,0.28); }
+    #root .hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    #root .cat { font-size: 72px; font-weight: 900; line-height: 1.25; }
+    #root .pill { position: absolute; height: 52px; border-radius: 26px; background: rgba(229,56,59,0.16); border: 2px solid rgba(255,77,80,0.6);
+      color: #FF6B6E; font-size: 30px; font-weight: 700; line-height: 48px; text-align: center; }
+    #root .row { position: absolute; left: 100px; width: 860px; height: 142px; display: flex; align-items: center; gap: 22px; padding: 0 24px;
+      background: #231A29; border: 2px solid #3B2D44; border-radius: 28px; }
+    #root .num { flex: none; width: 68px; height: 68px; border-radius: 34px; background: #E5383B; font-size: 36px; font-weight: 900; line-height: 68px; text-align: center; }
+    #root .txt { flex: 1; min-width: 0; text-align: right; }
+    #root .type { font-size: 42px; font-weight: 700; line-height: 1.3; }
+    #root .brand { font-family: Oswald, sans-serif; font-weight: 600; font-size: 32px; letter-spacing: 0.5px; line-height: 1.25; color: #F4C7C3; text-align: right; }
+    #root .stamp { flex: none; font-size: 28px; font-weight: 900; line-height: 1.35; color: #FF4D50; border: 4px solid #FF4D50; border-radius: 12px; padding: 2px 12px; }
+  </style>
+  <div id="root" data-composition-id="care" data-width="1080" data-height="1920">
+    <div class="hero" id="care-hero" style="left: 360px; top: 196px; width: 340px; height: 340px"><img src="assets/img/cat-care.jpg" alt="" /></div>
+    <div class="box cat" id="care-title" style="top: 558px"><span class="w">کرم‌های</span> <span class="w">مراقبت</span> <span class="w">پوست</span></div>
+    <div class="pill" id="care-pill" style="left: 400px; width: 260px; top: 662px">۲ محصول غیرمجاز</div>
+    <div class="row" id="care-r1" style="top: 772px">
+      <div class="num">۱۱</div>
+      <div class="txt"><div class="type">کرم جوان‌ساز</div><div class="brand" dir="ltr">MATIA</div></div>
+      <div class="stamp" id="care-s1">غیرمجاز</div>
+    </div>
+    <div class="row" id="care-r2" style="top: 940px">
+      <div class="num">۱۲</div>
+      <div class="txt"><div class="type">کرم آنتی‌اکسیدان</div><div class="brand" dir="ltr">BIOAQUA</div></div>
+      <div class="stamp" id="care-s2">غیرمجاز</div>
+    </div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#care-hero", { opacity: 0, scale: 0.82, filter: "blur(10px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.55, ease: "expo.out" }, 0);
+    tl.fromTo("#care-title .w", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.15, ease: "expo.out", stagger: 0.08 }, 0.15);
+    tl.fromTo("#care-pill", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "expo.out" }, 0.4);
+    tl.fromTo("#care-r1", { opacity: 0, y: 70, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, 0.8);
+    tl.fromTo("#care-s1", { opacity: 0, scale: 1.7, rotation: -22 }, { opacity: 1, scale: 1, rotation: -10, duration: 0.22, ease: "power4.in" }, 1.25);
+    tl.fromTo("#care-r1", { x: 0 }, { x: 6, duration: 0.04, yoyo: true, repeat: 3, ease: "none" }, 1.47);
+    tl.fromTo("#care-r2", { opacity: 0, y: 70, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, 1.9);
+    tl.fromTo("#care-s2", { opacity: 0, scale: 1.7, rotation: -22 }, { opacity: 1, scale: 1, rotation: -10, duration: 0.22, ease: "power4.in" }, 2.35);
+    tl.fromTo("#care-r2", { x: 0 }, { x: 6, duration: 0.04, yoyo: true, repeat: 3, ease: "none" }, 2.57);
+    tl.to(["#care-hero", "#care-title", "#care-pill", "#care-r1", "#care-r2"], { opacity: 0, filter: "blur(10px)", duration: 0.22, ease: "power3.in", stagger: 0.03 }, 4.08);
+    window.__timelines["care"] = tl;
+  </script>
+</template>
