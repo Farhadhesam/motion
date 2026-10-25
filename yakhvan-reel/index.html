@@ -19,19 +19,14 @@
   #stage > * { position: absolute; }
   canvas { inset: 0; }
 
-  /* ---------- captions ---------- */
-  #cap { left: 70px; right: 70px; height: 0; }
-  .grp { position: absolute; left: 0; right: 0; bottom: 0; display: none; text-align: center;
-         font-weight: 900; font-size: 74px; line-height: 1.32; }
-  .w { display: inline-block; padding: 0 14px; margin: 4px 0; border-radius: 22px; position: relative;
-       white-space: nowrap; color: #fff;
-       text-shadow: 0 4px 0 rgba(0,0,0,.55), 0 0 24px rgba(0,0,0,.55);
-       -webkit-text-stroke: 2px rgba(0,0,0,.35); paint-order: stroke fill; }
-  .w.kw { color: var(--ice); }
-  .w .pill { position: absolute; inset: 6px 0 2px; border-radius: 22px; background: var(--lemon); z-index: -1;
-             box-shadow: 0 8px 0 rgba(0,0,0,.25); opacity: 0; }
-  .w.on { color: var(--ink); text-shadow: none; -webkit-text-stroke: 0; }
-  .w.on .pill { opacity: 1; }
+  /* ---------- captions: a sentence at a time, low inside the Reels safe zone ----------
+     (the Reels UI covers about the bottom 380px and a 130px strip of buttons on the right) */
+  #cap { left: 70px; right: 150px; top: 1540px; height: 0; }
+  .cue { position: absolute; left: 0; right: 0; bottom: 0; display: none; text-align: center; }
+  .cue span { font-weight: 700; font-size: 52px; line-height: 1.62; color: #fff;
+              background: rgba(8,20,28,.62); padding: 4px 24px 10px; border-radius: 18px;
+              -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+  .cue b { font-weight: 900; color: var(--lemon); }
 
   /* ---------- hook title ---------- */
   #hook { left: 0; right: 0; top: 960px; text-align: center; font-family: Lalezar, Vazirmatn; line-height: 1.12; }
@@ -41,12 +36,22 @@
   #hook .b span { display: inline-block; background: var(--lemon); padding: 0 34px 10px; border-radius: 30px;
                   box-shadow: 0 12px 0 rgba(14,36,48,.35); }
 
-  /* ---------- step chip ---------- */
-  #chip { top: 170px; left: 60px; display: flex; align-items: center; gap: 22px; opacity: 0;
-          background: rgba(255,255,255,.92); color: var(--ink); border-radius: 999px; padding: 14px 40px 18px 18px;
-          font-weight: 900; font-size: 50px; box-shadow: 0 14px 40px rgba(0,0,0,.25); white-space: nowrap; }
-  #chip .n { display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%;
-             background: var(--ice); font-family: Lalezar; font-size: 60px; padding-top: 6px; box-sizing: border-box; }
+  /* ---------- steps: frosted-glass list that grows as the recipe goes on ---------- */
+  #steps { left: 50px; top: 175px; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+  .st { display: flex; align-items: center; gap: 16px; padding: 10px 12px 12px 34px; border-radius: 999px; opacity: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,.34), rgba(255,255,255,.08));
+        border: 2px solid rgba(255,255,255,.5);
+        backdrop-filter: blur(20px) saturate(1.5); -webkit-backdrop-filter: blur(20px) saturate(1.5);
+        box-shadow: 0 12px 34px rgba(10,30,40,.22), inset 0 2px 0 rgba(255,255,255,.55);
+        color: #fff; font-weight: 800; font-size: 38px; white-space: nowrap;
+        text-shadow: 0 2px 10px rgba(0,30,40,.4); transform-origin: 100% 50%; }
+  .st .n { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; flex: none;
+           background: rgba(255,255,255,.25); border: 2px solid rgba(255,255,255,.75); color: #fff;
+           font-family: Lalezar; font-size: 40px; padding-top: 5px; box-sizing: border-box; text-shadow: none; }
+  .st.cur { background: linear-gradient(135deg, rgba(255,255,255,.5), rgba(255,255,255,.18)); }
+  .st.cur .n { background: var(--lemon); border-color: var(--lemon); color: var(--ink); }
+  .st.done { opacity: .8; }
+  .st.done .n { background: var(--ice); border-color: var(--ice); color: var(--ink); font-family: Vazirmatn; font-weight: 900; font-size: 32px; padding-top: 0; }
 
   /* ---------- stickers ---------- */
   #stickers { inset: 0; pointer-events: none; }
@@ -100,7 +105,7 @@
 <div id="stage">
   <canvas id="cam" width="1080" height="1920"></canvas>
   <div id="hook"></div>
-  <div id="chip"><span class="n"></span><span class="txt"></span></div>
+  <div id="steps"></div>
   <div id="stickers"></div>
   <div id="vs"></div>
   <div id="ing"><div class="ttl"></div></div>
@@ -116,6 +121,7 @@
 <div id="controls"><button id="play">پخش</button></div>
 
 <script src="edit.js"></script>
+<script src="captions.js"></script>
 <script>
 const W = 1080, H = 1920, FPS = 30, SW = 720, SH = 1280;
 const RENDER = new URLSearchParams(location.search).has('render');
@@ -145,7 +151,7 @@ const FACE = { x: 440, y: 520 };
 const FRAMES = {
   wide:  { s: 1.0,  x: 360, y: 640 },
   mid:   { s: 1.14, x: 400, y: 600 },
-  close: { s: 1.27, x: FACE.x, y: FACE.y },
+  close: { s: 1.27, x: FACE.x - 52, y: FACE.y },   // face sits right of centre, clear of the steps list
 };
 
 // camera beats: framing changes on phrase starts inside talk shots
@@ -293,65 +299,18 @@ async function drawCamera(t) {
 }
 
 // ---------- captions ----------
-// words get times by spreading each phrase over its span, weighted by length
-const words = [];
-for (const c of CAPS) {
-  const toks = c.text.split(/\s+/).filter(Boolean);
-  const wts = toks.map(w => w.replace(/[*،.؟!:]/g, '').length + 2.5);
-  const sum = wts.reduce((a, b) => a + b, 0);
-  let acc = c.t0;
-  toks.forEach((w, i) => {
-    const d = (c.t1 - c.t0) * wts[i] / sum;
-    words.push({ text: w.replace(/\*/g, ''), kw: w.includes('*'), t0: acc, t1: acc + d, phrase: c });
-    acc += d;
-  });
+// whole sentences (see captions.js), always in the same place, with a short fade
+const CUES = buildCues(CAPS);
+for (const q of CUES) {
+  q.el = document.createElement('div'); q.el.className = 'cue';
+  q.el.innerHTML = `<span>${q.text.replace(/\*([^*]+)\*/g, '<b>$1</b>')}</span>`;
+  $('#cap').append(q.el);
 }
-// display groups: each phrase split into evenly sized chunks of about 3 words / 24 letters,
-// so no word is left alone on screen for a split second
-const groups = [];
-for (const c of CAPS) {
-  const ws = words.filter(w => w.phrase === c);
-  const chars = ws.reduce((a, w) => a + w.text.length + 1, 0);
-  const n = Math.max(Math.ceil(ws.length / 3), Math.ceil(chars / 24));
-  for (let k = 0, i = 0; k < n; k++) {
-    const size = Math.ceil((ws.length - i) / (n - k));
-    groups.push({ words: ws.slice(i, i + size), phrase: c });
-    i += size;
-  }
-}
-for (const g of groups) g.t0 = g.words[0].t0 - 0.06;
-groups.forEach((g, i) => {
-  const nx = groups[i + 1];
-  g.t1 = Math.min(g.words[g.words.length - 1].t1 + 0.35, nx ? nx.t0 : Infinity);
-  g.el = document.createElement('div'); g.el.className = 'grp';
-  for (const w of g.words) {
-    w.el = document.createElement('span');
-    w.el.className = 'w' + (w.kw ? ' kw' : '');
-    w.el.innerHTML = '<i class="pill"></i>' + w.text.replace(/[،.]$/, '');
-    g.el.append(w.el, ' ');
-  }
-  $('#cap').append(g.el);
-});
-
 function drawCaptions(t) {
-  const sh = shots[shotAt(t)];
-  const capY = t >= END.t ? 1560 : sh.kind === 'broll' ? (sh.capY || 540) : 1430;
-  $('#cap').style.top = capY + 'px';
-  for (const g of groups) {
-    const on = t >= g.t0 && t < g.t1;
-    g.el.style.display = on ? 'block' : 'none';
-    if (!on) continue;
-    const gin = easeBack(prog(t, g.t0, g.t0 + 0.16));
-    g.el.style.transform = `translateY(${(1 - gin) * 30}px)`;
-    let active = null;
-    for (const w of g.words) if (t >= w.t0 - 0.02) active = w;
-    for (const w of g.words) {
-      const k = prog(t, w.t0 - 0.06, w.t0 + 0.1);
-      const s = t < w.t0 - 0.06 ? 0 : lerp(0.6, 1, easeBack(k));
-      w.el.style.opacity = t < w.t0 - 0.06 ? 0.0 : 1;
-      w.el.style.transform = `scale(${s.toFixed(3)})`;
-      w.el.classList.toggle('on', w === active && t < w.t1 + 0.25);
-    }
+  for (const q of CUES) {
+    const on = t >= q.t0 - 0.05 && t < q.t1;
+    q.el.style.display = on ? 'block' : 'none';
+    if (on) q.el.style.opacity = Math.min(prog(t, q.t0 - .05, q.t0 + .07), 1 - prog(t, q.t1 - .07, q.t1));
   }
 }
 
@@ -370,16 +329,27 @@ function drawHook(t) {
   el.style.transform = `translateY(${-easeIn(out) * 120}px)`;
 }
 
-// ---------- step chip ----------
-function drawChip(t) {
-  const el = $('#chip');
-  const st = STEPS.find(s => t >= s.t0 && t < s.t1);
-  if (!st) { el.style.opacity = 0; return; }
-  el.querySelector('.n').textContent = fa(st.n);
-  el.querySelector('.txt').textContent = st.text;
-  const k = easeBack(prog(t, st.t0, st.t0 + .35)), o = prog(t, st.t1 - .25, st.t1);
-  el.style.opacity = Math.min(prog(t, st.t0, st.t0 + .1), 1 - o);
-  el.style.transform = `translateX(${(1 - k) * 160 + easeIn(o) * 160}px)`;
+// ---------- steps ----------
+// every step is laid out from the start (invisible), so the list never shifts as it grows;
+// a finished step stays, its number turning into a tick
+for (const st of STEPS) {
+  st.el = document.createElement('div'); st.el.className = 'st';
+  st.el.innerHTML = `<span class="n"></span><span>${st.text}</span>`;
+  $('#steps').append(st.el);
+}
+function drawSteps(t) {
+  const out = prog(t, END.t - .3, END.t);
+  $('#steps').style.opacity = 1 - out;
+  for (const st of STEPS) {
+    const k = easeBack(prog(t, st.t0, st.t0 + .45)), done = t >= st.t1;
+    st.el.style.opacity = t < st.t0 ? 0 : prog(t, st.t0, st.t0 + .15) * (done ? .8 : 1);
+    st.el.style.transform = `translateX(${(1 - k) * -60}px) scale(${lerp(.85, 1, k)})`;
+    st.el.classList.toggle('cur', !done && t >= st.t0);
+    st.el.classList.toggle('done', done);
+    const n = st.el.querySelector('.n');
+    n.textContent = done ? '✓' : fa(st.n);
+    n.style.transform = `scale(${done ? lerp(1.35, 1, easeOut(prog(t, st.t1, st.t1 + .3))) : 1})`;
+  }
 }
 
 // ---------- stickers ----------
@@ -499,7 +469,7 @@ async function renderAt(t) {
   await drawCamera(t);
   drawCaptions(t);
   drawHook(t);
-  drawChip(t);
+  drawSteps(t);
   drawStickers(t);
   drawVs(t);
   drawIng(t);
