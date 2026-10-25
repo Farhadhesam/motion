@@ -161,7 +161,9 @@ const camBeats = [];
       // sentence starts may re-frame after 3.2 s, any phrase start after 4.5 s
       const gap = c.t0 - last;
       if (c.t0 <= sh.t + 2.5 || c.t0 >= sh.end - 1.5 || gap < (c.cut ? 3.2 : 4.5)) continue;
-      camBeats.push({ t: c.t0 - 0.04, f: order[n++ % order.length] });
+      let f = order[n++ % order.length];
+      if (f === camBeats[camBeats.length - 1].f) f = order[n++ % order.length];
+      camBeats.push({ t: c.t0 - 0.04, f });
       last = c.t0;
     }
   }
@@ -304,16 +306,18 @@ for (const c of CAPS) {
     acc += d;
   });
 }
-// display groups: up to 3 words / 19 letters, never across a phrase or a punctuation stop
+// display groups: each phrase split into evenly sized chunks of about 3 words / 24 letters,
+// so no word is left alone on screen for a split second
 const groups = [];
-for (const w of words) {
-  let g = groups[groups.length - 1];
-  const len = g ? g.words.reduce((a, x) => a + x.text.length + 1, 0) + w.text.length : 0;
-  const prevW = g && g.words[g.words.length - 1];
-  if (!g || g.phrase !== w.phrase || g.words.length >= 3 || len > 19 || /[،.؟!:]$/.test(prevW.text)) {
-    g = { words: [], phrase: w.phrase }; groups.push(g);
+for (const c of CAPS) {
+  const ws = words.filter(w => w.phrase === c);
+  const chars = ws.reduce((a, w) => a + w.text.length + 1, 0);
+  const n = Math.max(Math.ceil(ws.length / 3), Math.ceil(chars / 24));
+  for (let k = 0, i = 0; k < n; k++) {
+    const size = Math.ceil((ws.length - i) / (n - k));
+    groups.push({ words: ws.slice(i, i + size), phrase: c });
+    i += size;
   }
-  g.words.push(w);
 }
 for (const g of groups) g.t0 = g.words[0].t0 - 0.06;
 groups.forEach((g, i) => {
