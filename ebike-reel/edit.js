@@ -55,24 +55,32 @@ window.EDIT = {
 
   HOOK: { t0: 0.25, t1: 3.8, a: 'شبیه موتوره، ولی', b: 'دوچرخه‌ست!' },
 
-  // perks, listed as he names them
+  // perks that aren't a part you can point at; the parts get callouts below
   FEATURES: [
-    { t: 12.1, e: '👥', text: 'دو سرنشین' },
     { t: 19.9, e: '🪪', text: 'بدون گواهینامه' },
     { t: 21.1, e: '🚫', text: 'بدون پلاک' },
     { t: 30.6, e: '🎵', text: 'بلوتوث و موزیک' },
-    { t: 36.3, e: '🔋', text: 'باتری جداشدنی' },
-    { t: 45.8, e: '🚴', text: 'سنسور پدال' },
-    { t: 62.4, e: '📟', text: 'نمایشگر دیجیتال' },
-    { t: 68.0, e: '🛑', text: 'ترمز هیدرولیک' },
-    { t: 70.2, e: '💡', text: 'بوق، چراغ و راهنما' },
-    { t: 85.1, e: '🎒', text: 'کیف بار' },
-    { t: 88.6, e: '🔒', text: 'قفل' },
+    { t: 78.6, e: '🚴', text: 'بی‌شارژ هم رکاب می‌خوره' },
+  ],
+
+  // part callouts: a glass label joined to the part by a dotted line. `keys` are the part's
+  // position (source pixels) on hand-picked frames [t, x, y]; track.py follows it between and
+  // beyond them. `off` places the label relative to the part, in screen pixels.
+  CALLOUTS: [
+    { id: 'seat', t0: 12.1, t1: 15.3, keys: [[12.4, 300, 915]], off: [-120, -250], text: 'صندلی دو نفره' },
+    { id: 'motor', t0: 24.4, t1: 27.0, keys: [[24.6, 300, 1220]], off: [-60, -400], text: 'موتور ۱۵۰۰ وات' },
+    { id: 'battery', t0: 36.3, t1: 39.7, keys: [[36.6, 800, 1170]], off: [-340, -70], text: 'باتری جداشدنی' },
+    { id: 'pedal', t0: 49.4, t1: 52.6, keys: [[50.5, 520, 1180]], off: [-320, -280], text: 'سنسور پدال' },
+    { id: 'display', t0: 65.6, t1: 67.95, keys: [[65.9, 886, 724], [67.5, 716, 688]], off: [-300, 200], text: 'نمایشگر دیجیتال' },
+    { id: 'brake', t0: 68.0, t1: 70.0, keys: [[68.5, 290, 670]], off: [300, -110], text: 'ترمز هیدرولیک' },
+    { id: 'signal', t0: 70.1, t1: 71.6, keys: [[70.5, 982, 1123]], off: [-380, -150], text: 'راهنمای جلو' },
+    { id: 'tail', t0: 74.5, t1: 76.85, keys: [[75.2, 580, 742]], off: [260, -230], text: 'چراغ عقب' },
+    { id: 'bag', t0: 80.7, t1: 84.9, keys: [[83.0, 600, 710]], off: [210, -260], text: 'کیف، نه باک!' },
+    { id: 'lock', t0: 88.5, t1: 91.5, keys: [[89.0, 560, 1010]], off: [280, 140], text: 'قفل' },
   ],
 
   // big numbers that count up; c0/c1 set the counting window when it should follow his voice
   SPECS: [
-    { t: 24.4, d: 2.55, label: '⚡ قدرت موتور', value: 1500, unit: 'وات', fill: .75 },
     { t: 27.0, d: 2.15, label: '🏁 سرعت (حدوداً)', value: 60, unit: 'km/h', fill: .6 },
     { t: 39.9, d: 3.4, label: 'مود قدرت', value: 3, unit: 'حالت', c0: 41.9, c1: 43.4 },
   ],

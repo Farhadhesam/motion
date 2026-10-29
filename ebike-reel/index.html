@@ -63,6 +63,13 @@
   .ft.new .n { background: var(--volt); border-color: var(--volt); box-shadow: 0 0 22px rgba(61,240,255,.8); }
 
   /* ---------- spec card: big number that counts up ---------- */
+  /* ---------- part callouts: glass label joined to the part by a dotted line ---------- */
+  #callouts { inset: 0; pointer-events: none; }
+  #colines { position: absolute; inset: 0; overflow: visible;
+             filter: drop-shadow(0 0 5px rgba(61,240,255,.9)) drop-shadow(0 0 12px rgba(61,240,255,.45)); }
+  .co { position: absolute; left: 0; top: 0; border-radius: 999px; padding: 8px 30px 12px; opacity: 0;
+        font-weight: 800; font-size: 36px; white-space: nowrap; text-shadow: 0 2px 10px rgba(0,0,0,.45); }
+
   #specs { inset: 0; pointer-events: none; }
   .spec { position: absolute; left: 50%; top: 1000px; width: 640px; margin-left: -320px; border-radius: 44px; padding: 28px 30px 34px;
           text-align: center; opacity: 0; box-sizing: border-box; }
@@ -100,6 +107,7 @@
   <div id="hook"></div>
   <div id="feat"></div>
   <div id="specs"></div>
+  <div id="callouts"><svg id="colines" width="1080" height="1920"></svg></div>
   <div id="cap" class="glass"><span class="beam"><i></i></span></div>
   <div id="measure"></div>
   <div id="end"><div class="box glass"><div class="t1"></div><div class="t2"></div><div class="t3"></div></div></div>
@@ -109,11 +117,13 @@
 
 <script src="edit.js"></script>
 <script src="captions.js"></script>
+<script src="tracks.js"></script>
 <script>
 const W = 1080, H = 1920, FPS = 30;
 const RENDER = new URLSearchParams(location.search).has('render');
 if (RENDER) document.documentElement.classList.add('render');
-const { SHOTS, CAPS, HOOK, FEATURES, SPECS, CAMLOCK, END, DURATION } = window.EDIT;
+const { SHOTS, CAPS, HOOK, FEATURES, CALLOUTS, SPECS, CAMLOCK, END, DURATION } = window.EDIT;
+const TRACKS = window.TRACKS;
 
 // ---------- helpers ----------
 const clamp = (x, a = 0, c = 1) => Math.min(c, Math.max(a, x));
@@ -305,15 +315,17 @@ function drawHook(t) {
 }
 
 // ---------- features ----------
-// a glass list that grows as he names each perk; past five items the oldest slide up and fade
-const FT_ROW = 86, FT_MAX = 5;
+// a glass list that grows as he names each perk; past five items the oldest slide up and fade.
+// It only stays up for a few seconds after each new item, so it doesn't crowd the callouts.
+const FT_ROW = 86, FT_MAX = 5, FT_HOLD = 4.5;
 for (const f of FEATURES) {
   f.el = document.createElement('div'); f.el.className = 'ft glass';
   f.el.innerHTML = `<span class="n">${f.e}</span><span>${f.text}</span>`;
   $('#feat').append(f.el);
 }
 function drawFeatures(t) {
-  $('#feat').style.opacity = 1 - prog(t, END.t - .3, END.t);
+  const last = FEATURES.filter(f => f.t <= t).pop();
+  $('#feat').style.opacity = last ? 1 - prog(t, last.t + FT_HOLD - .4, last.t + FT_HOLD) : 0;
   const shift = FEATURES.slice(FT_MAX).reduce((a, f) => a + easeInOut(prog(t, f.t, f.t + .4)), 0);
   FEATURES.forEach((f, i) => {
     const k = easeBack(prog(t, f.t, f.t + .45)), slot = i - shift;
@@ -339,6 +351,59 @@ function drawSpecs(t) {
     const c = easeOut(prog(t, s.c0 ?? s.t + .1, s.c1 ?? s.t + 1.2));
     s.el.querySelector('.val span').textContent = fa(Math.round(s.value * c));
     s.el.querySelector('.bar i').style.width = (100 * c * (s.fill ?? 1)) + '%';
+  }
+}
+
+// ---------- part callouts ----------
+// the part's position comes from tracks.js (source pixels, one entry per source frame) and is
+// mapped through the current framing; the label keeps its offset from the part, inside the safe area
+const NS = 'http://www.w3.org/2000/svg';
+const svgEl = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+for (const c of CALLOUTS) {
+  c.el = document.createElement('div'); c.el.className = 'co glass'; c.el.textContent = c.text;
+  $('#callouts').append(c.el);
+  c.g = svgEl('g', { opacity: 0 });
+  c.line = svgEl('line', { stroke: '#fff', 'stroke-width': 6, 'stroke-linecap': 'round', 'stroke-dasharray': '0.1 14' });
+  c.ring = svgEl('circle', { fill: 'none', stroke: '#3df0ff', 'stroke-width': 3 });
+  c.dot = svgEl('circle', { fill: '#3df0ff', stroke: '#fff', 'stroke-width': 3 });
+  c.g.append(c.line, c.ring, c.dot);
+  $('#colines').append(c.g);
+}
+function toScreen([x, y], t) {
+  const v = viewFor(t), k = v.s;
+  return [clamp(W / 2 - v.x * k, W - W * k, 0) + x * k, clamp(H / 2 - v.y * k, H - H * k, 0) + y * k];
+}
+function partAt(c, t) {
+  const tr = TRACKS[c.id], i = clamp(srcIndex(t) - tr.f0, 0, tr.xy.length / 2 - 1);
+  return [tr.xy[2 * i], tr.xy[2 * i + 1]];
+}
+// where the ray from the label's centre toward the part leaves the label
+function edge(cx, cy, hw, hh, px, py) {
+  const dx = px - cx, dy = py - cy, s = 1 / Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh, 1e-6);
+  return s >= 1 ? [cx, cy] : [cx + dx * s, cy + dy * s];
+}
+function drawCallouts(t) {
+  for (const c of CALLOUTS) {
+    const on = t >= c.t0 && t < c.t1;
+    c.el.style.opacity = 0; c.g.setAttribute('opacity', 0);
+    if (!on) continue;
+    const fade = 1 - prog(t, c.t1 - .3, c.t1);
+    const [ax, ay] = toScreen(partAt(c, t), t);
+    const w = c.el.offsetWidth, h = c.el.offsetHeight;
+    const lx = clamp(ax + c.off[0], 40 + w / 2, W - 150 - w / 2), ly = clamp(ay + c.off[1], 250 + h / 2, 1330 - h / 2);
+    const [ex, ey] = edge(lx, ly, w / 2 + 8, h / 2 + 8, ax, ay);
+    const kd = easeOut(prog(t, c.t0 + .1, c.t0 + .5));
+    Object.entries({ x1: ax, y1: ay, x2: ax + (ex - ax) * kd, y2: ay + (ey - ay) * kd })
+      .forEach(([k, v]) => c.line.setAttribute(k, v.toFixed(1)));
+    c.line.setAttribute('stroke-dashoffset', (-(t - c.t0) * 40).toFixed(1));
+    const kp = easeBack(prog(t, c.t0, c.t0 + .3)), pulse = ((t - c.t0) % 1.1) / 1.1;
+    c.dot.setAttribute('cx', ax); c.dot.setAttribute('cy', ay); c.dot.setAttribute('r', (10 * kp).toFixed(1));
+    c.ring.setAttribute('cx', ax); c.ring.setAttribute('cy', ay); c.ring.setAttribute('r', (12 + 26 * pulse).toFixed(1));
+    c.ring.setAttribute('opacity', ((1 - pulse) * .9).toFixed(2));
+    c.g.setAttribute('opacity', fade.toFixed(2));
+    const kl = easeBack(prog(t, c.t0 + .4, c.t0 + .75));
+    c.el.style.opacity = prog(t, c.t0 + .4, c.t0 + .55) * fade;
+    c.el.style.transform = `translate(${(lx - w / 2).toFixed(1)}px, ${(ly - h / 2).toFixed(1)}px) scale(${lerp(.6, 1, kl).toFixed(3)})`;
   }
 }
 
@@ -384,6 +449,7 @@ async function renderAt(t) {
   drawHook(t);
   drawFeatures(t);
   drawSpecs(t);
+  drawCallouts(t);
   drawFx(t);
   drawCaptions(t);
   drawEnd(t);
@@ -397,6 +463,7 @@ for (const [i, s] of shots.entries()) if (i) SFX.push({ t: s.t - 0.25, type: 'wh
 SFX.push({ t: HOOK.t0 + .25, type: 'zap', gain: 1 });
 for (const f of FEATURES) SFX.push({ t: f.t, type: 'pop', gain: .55 });
 for (const s of SPECS) SFX.push({ t: s.t, type: 'zap', gain: .8 });
+for (const c of CALLOUTS) SFX.push({ t: c.t0 + .4, type: 'pop', gain: .5 });
 SFX.push({ t: END.t - .5, type: 'rise', gain: .6 }, { t: END.t + .15, type: 'zap', gain: 1 });
 
 window.DURATION = DURATION;
