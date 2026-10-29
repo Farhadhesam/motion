@@ -10,7 +10,7 @@ import path from 'node:path';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const opt = (name, def) => (args.includes(name) ? args[args.indexOf(name) + 1] : def);
-const out = path.resolve(args.find(a => a.endsWith('.mp4')) ?? path.join(here, 'out', 'yakhvan-edit.mp4'));
+const out = path.resolve(args.find(a => a.endsWith('.mp4')) ?? path.join(here, 'out', 'ebike-edit.mp4'));
 const workers = Number(opt('--workers', 3));
 const source = path.join(here, 'assets', 'source.mp4');
 const tmp = path.join(here, 'out', 'parts');

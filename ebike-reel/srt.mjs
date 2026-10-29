@@ -20,7 +20,7 @@ const stamp = (t, sep = ',') => {
 if (process.argv.includes('--list')) {
   cues.forEach((c, i) => console.log(`${i + 1}. [${stamp(c.t0).slice(3, 8)}] ${c.text}`));
 } else {
-  const out = path.resolve(process.argv[2] ?? path.join(here, 'out', 'yakhvan-subtitles.srt'));
+  const out = path.resolve(process.argv[2] ?? path.join(here, 'out', 'ebike-subtitles.srt'));
   fs.writeFileSync(out, cues.map((c, i) => `${i + 1}\n${stamp(c.t0)} --> ${stamp(c.t1)}\n${c.text}\n`).join('\n'));
   console.log('wrote', out, cues.length, 'cues');
 }
