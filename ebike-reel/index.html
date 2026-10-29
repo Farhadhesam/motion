@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>دوچرخه برقی — ادیت ریلز</title>
+<style>
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Light.woff2) format("woff2"); font-weight: 300; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Regular.woff2) format("woff2"); font-weight: 400; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Bold.woff2) format("woff2"); font-weight: 700; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Black.woff2) format("woff2"); font-weight: 900; }
+  @font-face { font-family: Lalezar; src: url(fonts/Lalezar-Arabic.woff2) format("woff2"); unicode-range: U+0600-06FF, U+200C-200E, U+FB50-FDFF, U+FE70-FEFF; }
+  @font-face { font-family: Lalezar; src: url(fonts/Lalezar-Latin.woff2) format("woff2"); unicode-range: U+0000-00FF; }
+
+  :root { --volt: #3df0ff; --volt2: #9b8cff; --ink: #07141c; }
+  html, body { margin: 0; height: 100%; background: #05090c; overflow: hidden; }
+  body { display: grid; place-items: center; font-family: Vazirmatn, sans-serif; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; color: #fff; background: #000; }
+  #stage > * { position: absolute; }
+  canvas { inset: 0; }
+
+  /* shared frosted glass */
+  .glass { background: linear-gradient(135deg, rgba(255,255,255,.24), rgba(255,255,255,.06));
+           backdrop-filter: blur(22px) saturate(1.6) brightness(.8); -webkit-backdrop-filter: blur(22px) saturate(1.6) brightness(.8);
+           border: 1.5px solid rgba(255,255,255,.38);
+           box-shadow: 0 18px 44px rgba(0,0,0,.28), inset 0 2px 0 rgba(255,255,255,.4); }
+
+  /* ---------- captions: one glass box in the Reels safe zone, morphing between sentences ----------
+     (the Reels UI covers about the bottom 380px and a 130px strip of buttons on the right) */
+  #cap { left: 0; top: 0; width: 0; height: 0; border-radius: 34px; opacity: 0; box-sizing: border-box; }
+  #cap .beam { position: absolute; inset: -2px; border-radius: 36px; pointer-events: none;
+               filter: drop-shadow(0 0 6px var(--volt)) drop-shadow(0 0 18px rgba(61,240,255,.75)) drop-shadow(0 0 34px rgba(61,240,255,.35)); }
+  #cap .beam i { position: absolute; inset: 0; border-radius: inherit; padding: 4px;
+                 background: conic-gradient(from var(--a, 0deg), transparent 0deg 160deg, rgba(155,140,255,.45) 220deg,
+                             var(--volt) 290deg, #fff 338deg, transparent 350deg 360deg);
+                 -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+                 -webkit-mask-composite: xor; mask-composite: exclude; }
+  /* same wrapping width as #measure, centred on the box, so lines break exactly where they were measured */
+  #cap .tx { position: absolute; left: 50%; width: 860px; margin-left: -430px; box-sizing: border-box; top: 50%; transform: translateY(-50%); padding: 0 36px;
+             text-align: center; font-weight: 700; font-size: 50px; line-height: 1.55; opacity: 0; text-wrap: balance;
+             text-shadow: 0 2px 14px rgba(0,0,0,.45); }
+  #cap .tx b { font-weight: 900; color: var(--volt); }
+  #measure { visibility: hidden; left: 0; top: 0; width: 860px; }
+  #measure b { font-weight: 900; }
+  #measure div { display: inline-block; max-width: 860px; padding: 16px 36px 22px; box-sizing: border-box;
+                 font-weight: 700; font-size: 50px; line-height: 1.55; text-align: center; text-wrap: balance; }
+
+  /* ---------- hook ---------- */
+  #hook { left: 0; right: 0; top: 1010px; text-align: center; font-family: Lalezar, Vazirmatn; line-height: 1.1; }
+  #hook .l { display: block; white-space: nowrap; }
+  #hook .a { font-size: 96px; color: #fff; text-shadow: 0 6px 24px rgba(0,0,0,.5); }
+  #hook .b { font-size: 140px; }
+  #hook .b span { display: inline-block; color: var(--ink); background: var(--volt); padding: 0 36px 8px; border-radius: 30px;
+                  box-shadow: 0 0 40px rgba(61,240,255,.6), 0 12px 0 rgba(7,20,28,.35); }
+
+  /* ---------- features: glass list that grows ---------- */
+  #feat { left: 50px; top: 190px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+  .ft { display: flex; align-items: center; gap: 14px; padding: 8px 10px 10px 30px; border-radius: 999px; opacity: 0;
+        font-weight: 800; font-size: 34px; white-space: nowrap; text-shadow: 0 2px 10px rgba(0,0,0,.4); transform-origin: 100% 50%; }
+  .ft .n { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; flex: none;
+           background: rgba(255,255,255,.2); border: 2px solid rgba(255,255,255,.7);
+           font-family: "Noto Color Emoji"; font-size: 32px; text-shadow: none; }
+  .ft.new .n { background: var(--volt); border-color: var(--volt); box-shadow: 0 0 22px rgba(61,240,255,.8); }
+
+  /* ---------- spec card: big number that counts up ---------- */
+  #specs { inset: 0; pointer-events: none; }
+  .spec { position: absolute; left: 50%; top: 1000px; width: 640px; margin-left: -320px; border-radius: 44px; padding: 28px 30px 34px;
+          text-align: center; opacity: 0; box-sizing: border-box; }
+  .spec .lbl { font-weight: 800; font-size: 44px; text-shadow: 0 2px 10px rgba(0,0,0,.4); }
+  .spec .val { font-family: Lalezar; font-size: 190px; line-height: 1.05; color: var(--volt); direction: rtl;
+               text-shadow: 0 0 34px rgba(61,240,255,.65); }
+  .spec .val small { font-size: 74px; color: #fff; text-shadow: none; margin-right: 14px; }
+  .spec .bar { height: 12px; border-radius: 6px; background: rgba(255,255,255,.18); margin: 10px 30px 0; overflow: hidden; }
+  .spec .bar i { display: block; height: 100%; width: 0; margin-right: 0; margin-left: auto;
+                 background: linear-gradient(270deg, var(--volt), var(--volt2)); box-shadow: 0 0 16px var(--volt); }
+
+  /* ---------- progress ---------- */
+  #bar { left: 0; right: 0; top: 0; height: 10px; background: rgba(255,255,255,.16); }
+  #bar i { position: absolute; right: 0; top: 0; bottom: 0; background: linear-gradient(270deg, var(--volt), var(--volt2));
+           box-shadow: 0 0 14px var(--volt); }
+
+  /* ---------- end card ---------- */
+  #end { inset: 0; display: grid; place-items: center; opacity: 0; }
+  #end .box { text-align: center; border-radius: 56px; padding: 56px 60px 64px; width: 860px; box-sizing: border-box; }
+  #end .t1 { font-family: Lalezar; font-size: 150px; line-height: 1.05; color: #fff; text-shadow: 0 0 40px rgba(61,240,255,.6); }
+  #end .t2 { margin-top: 18px; font-weight: 800; font-size: 50px; color: var(--ink); background: var(--volt);
+             display: inline-block; padding: 6px 40px 12px; border-radius: 999px; box-shadow: 0 0 30px rgba(61,240,255,.6); }
+  #end .t3 { margin-top: 40px; font-weight: 400; font-size: 42px; opacity: .92; }
+
+  #controls { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); font: 14px system-ui; }
+  #controls button { font: inherit; padding: 6px 14px; border-radius: 999px; border: 1px solid #fff6;
+    background: #0008; color: #fff; cursor: pointer; }
+  .render #controls { display: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cam" width="1080" height="1920"></canvas>
+  <canvas id="fx" width="1080" height="1920"></canvas>
+  <div id="hook"></div>
+  <div id="feat"></div>
+  <div id="specs"></div>
+  <div id="cap" class="glass"><span class="beam"><i></i></span></div>
+  <div id="measure"></div>
+  <div id="end"><div class="box glass"><div class="t1"></div><div class="t2"></div><div class="t3"></div></div></div>
+  <div id="bar"><i></i></div>
+</div>
+<div id="controls"><button id="play">پخش</button></div>
+
+<script src="edit.js"></script>
+<script src="captions.js"></script>
+<script>
+const W = 1080, H = 1920, FPS = 30;
+const RENDER = new URLSearchParams(location.search).has('render');
+if (RENDER) document.documentElement.classList.add('render');
+const { SHOTS, CAPS, HOOK, FEATURES, SPECS, CAMLOCK, END, DURATION } = window.EDIT;
+
+// ---------- helpers ----------
+const clamp = (x, a = 0, c = 1) => Math.min(c, Math.max(a, x));
+const lerp = (a, c, k) => a + (c - a) * k;
+const prog = (t, a, c) => clamp((t - a) / (c - a));
+const easeOut = k => 1 - Math.pow(1 - k, 3);
+const easeIn = k => k * k * k;
+const easeInOut = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const easeBack = k => { const c = 1.9; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+function rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
+const fa = n => String(n).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
+const $ = s => document.querySelector(s);
+
+// ---------- shots & camera ----------
+// frames are pre-scaled to 1080x1920 by prepare.sh; the footage is one handheld take,
+// so framings stay gentle and centred
+const shots = SHOTS.map((s, i) => ({ ...s, end: i + 1 < SHOTS.length ? SHOTS[i + 1].t : DURATION + 1 }));
+const shotAt = t => { let k = 0; while (k + 1 < shots.length && shots[k + 1].t <= t + 1e-6) k++; return k; };
+const FRAMES = {
+  wide: { s: 1.0, x: 540, y: 960 },
+  mid:  { s: 1.08, x: 540, y: 900 },
+  push: { s: 1.15, x: 540, y: 840 },
+};
+const camBeats = [];
+(function planCamera() {
+  const order = ['mid', 'push', 'wide', 'push', 'mid', 'wide'];
+  let n = 0;
+  for (const sh of shots) {
+    let last = sh.t;
+    camBeats.push({ t: sh.t, f: sh.first || 'wide' });
+    for (const c of CAPS) {
+      if (c.t0 <= sh.t + 2.5 || c.t0 >= sh.end - 1.5 || c.t0 - last < (c.cut ? 3.2 : 4.5)) continue;
+      let f = order[n++ % order.length];
+      if (f === camBeats[camBeats.length - 1].f) f = order[n++ % order.length];
+      camBeats.push({ t: c.t0 - 0.04, f });
+      last = c.t0;
+    }
+  }
+  camBeats.sort((a, b) => a.t - b.t);
+})();
+const framingAt = t => {
+  const lock = CAMLOCK.find(l => t >= l.t0 && t < l.t1);
+  if (lock) return { t: lock.t0, f: lock.f };
+  let f = camBeats[0];
+  for (const b of camBeats) if (b.t <= t) f = b;
+  return f;
+};
+
+const cache = new Map();
+function frameImg(i) {
+  i = clamp(i, 1, window.EDIT.FRAMES);
+  if (cache.has(i)) return cache.get(i);
+  const img = new Image();
+  img.src = `assets/frames/${String(i).padStart(5, '0')}.jpg`;
+  const p = img.decode().then(() => img);
+  cache.set(i, p);
+  if (cache.size > 90) cache.delete(cache.keys().next().value);
+  return p;
+}
+const srcIndex = t => Math.round(t * FPS) + 1;
+const cam = $('#cam').getContext('2d');
+cam.imageSmoothingQuality = 'high';
+
+function drawShot(img, view, opts = {}) {
+  const k = view.s;
+  const dx = clamp(W / 2 - view.x * k, W - W * k, 0), dy = clamp(H / 2 - view.y * k, H - H * k, 0);
+  cam.globalAlpha = opts.alpha ?? 1;
+  cam.drawImage(img, dx + (opts.ox || 0), dy, W * k, H * k);
+  cam.globalAlpha = 1;
+}
+
+const grain = Array.from({ length: 4 }, (_, n) => {
+  const c = document.createElement('canvas'); c.width = 540; c.height = 960;
+  const g = c.getContext('2d'), d = g.createImageData(540, 960), r = rng(99 + n);
+  for (let i = 0; i < d.data.length; i += 4) { const v = 128 + (r() - .5) * 90; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
+  g.putImageData(d, 0, 0); return c;
+});
+
+function viewFor(t) {
+  const b = framingAt(t), f = FRAMES[b.f];
+  // ease into each new framing instead of cutting, so a handheld shot doesn't jump
+  const prev = camBeats.filter(x => x.t < b.t).pop();
+  const pf = prev ? FRAMES[prev.f] : f;
+  const k = easeInOut(prog(t, b.t, b.t + 0.45));
+  const drift = 1 + 0.02 * prog(t, b.t, b.t + 6);
+  return { s: lerp(pf.s, f.s, k) * drift, x: lerp(pf.x, f.x, k), y: lerp(pf.y, f.y, k) };
+}
+
+async function drawCamera(t) {
+  const k = shotAt(t), sh = shots[k], into = t - sh.t;
+  const img = await frameImg(srcIndex(t));
+  cam.filter = 'contrast(1.08) saturate(1.12) brightness(1.02)';
+  cam.fillStyle = '#000'; cam.fillRect(0, 0, W, H);
+  const v = viewFor(t);
+  if (k > 0 && into < 0.3) {
+    // zoom punch with a smear into each new shot
+    const p = easeOut(prog(into, 0, 0.3));
+    for (let j = 3; j >= 0; j--) drawShot(img, { ...v, s: v.s * lerp(1.2, 1, p) * (1 + j * 0.025 * (1 - p)) }, { alpha: j ? 0.25 : 1 });
+  } else {
+    drawShot(img, v);
+  }
+  cam.filter = 'none';
+  if (k > 0 && into < 0.16) {
+    cam.fillStyle = `rgba(200,250,255,${0.5 * (1 - prog(into, 0, 0.16))})`;
+    cam.fillRect(0, 0, W, H);
+  }
+
+  // grade: cool shadows, slightly warm highlights, vignette, darker bottom for the captions
+  cam.globalCompositeOperation = 'soft-light';
+  const gr = cam.createLinearGradient(0, 0, 0, H);
+  gr.addColorStop(0, 'rgba(255,225,190,.3)'); gr.addColorStop(1, 'rgba(40,120,170,.35)');
+  cam.fillStyle = gr; cam.fillRect(0, 0, W, H);
+  cam.globalCompositeOperation = 'source-over';
+  const vg = cam.createRadialGradient(W / 2, H * .45, H * .3, W / 2, H * .5, H * .8);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.45)');
+  cam.fillStyle = vg; cam.fillRect(0, 0, W, H);
+  const bed = cam.createLinearGradient(0, H * .6, 0, H);
+  bed.addColorStop(0, 'rgba(0,0,0,0)'); bed.addColorStop(1, 'rgba(0,0,0,.35)');
+  cam.fillStyle = bed; cam.fillRect(0, H * .6, W, H * .4);
+  cam.globalCompositeOperation = 'overlay'; cam.globalAlpha = 0.07;
+  cam.drawImage(grain[Math.round(t * FPS) % 4], 0, 0, W, H);
+  cam.globalCompositeOperation = 'source-over'; cam.globalAlpha = 1;
+
+  const ef = prog(t, END.t - 0.1, END.t + 0.5) * 0.55;
+  if (ef > 0) { cam.fillStyle = `rgba(4,12,18,${ef})`; cam.fillRect(0, 0, W, H); }
+}
+
+// ---------- captions ----------
+// one glass box: it stays up while he keeps talking, resizes to each sentence,
+// and a light runs round its border
+const CUES = buildCues(CAPS);
+const CAP_CX = 70 + (W - 70 - 150) / 2, CAP_BOTTOM = 1540;
+for (const q of CUES) {
+  const html = q.text.replace(/\*([^*]+)\*/g, '<b>$1</b>');
+  q.m = document.createElement('div'); q.m.innerHTML = `<span>${html}</span>`; $('#measure').append(q.m);
+  q.el = document.createElement('div'); q.el.className = 'tx'; q.el.innerHTML = html;
+  $('#cap').append(q.el);
+}
+// size each box to its longest balanced line (+ padding and the glass border);
+// runs once the web fonts are in, since fallback metrics give different line breaks
+async function measureCues() {
+  await Promise.all(['700', '900'].map(w => document.fonts.load(`${w} 50px Vazirmatn`, 'آب')));
+  for (const q of CUES) {
+    // a line can come back as several rects (one per bidi run / element), so group them by line
+    const lines = new Map();
+    for (const r of q.m.firstChild.getClientRects()) {
+      const key = Math.round(r.top / 10), l = lines.get(key) || { a: Infinity, b: -Infinity };
+      lines.set(key, { a: Math.min(l.a, r.left), b: Math.max(l.b, r.right) });
+    }
+    q.w = Math.ceil(Math.max(...[...lines.values()].map(l => l.b - l.a))) + 72 + 10;
+    q.h = q.m.offsetHeight + 4;
+  }
+}
+// runs of cues separated by short pauses share one appearance of the box
+CUES.forEach((q, i) => { const p = CUES[i - 1]; q.run = p && q.t0 - p.t1 < 0.9 ? p.run : i; });
+function drawCaptions(t) {
+  const box = $('#cap');
+  let i = -1;
+  for (let j = 0; j < CUES.length; j++) if (t >= CUES[j].t0 - 0.05) i = j;
+  const q = CUES[i], nx = CUES[i + 1];
+  // the box lingers through a short pause before the next cue of the same run
+  const hold = q && nx && nx.run === q.run ? nx.t0 : q && q.t1;
+  const visible = q && t < hold;
+  for (const c of CUES) c.el.style.opacity = 0;
+  if (!visible) { box.style.opacity = 0; return; }
+  const runStart = CUES[q.run].t0 - 0.05, runEnd = CUES.filter(c => c.run === q.run).pop().t1;
+  box.style.opacity = Math.min(prog(t, runStart, runStart + .2), 1 - prog(t, runEnd - .15, runEnd));
+  const p = CUES[i - 1], morph = p && p.run === q.run ? easeInOut(prog(t, q.t0 - .05, q.t0 + .2)) : 1;
+  const w = p && morph < 1 ? lerp(p.w, q.w, morph) : q.w, h = p && morph < 1 ? lerp(p.h, q.h, morph) : q.h;
+  const rise = 1 - easeOut(prog(t, runStart, runStart + .3));
+  Object.assign(box.style, { width: w + 'px', height: h + 'px', left: CAP_CX - w / 2 + 'px', top: CAP_BOTTOM - h + rise * 30 + 'px' });
+  q.el.style.opacity = prog(t, q.t0 - .05, q.t0 + .12);
+  box.querySelector('.beam').style.setProperty('--a', ((t * 150) % 360).toFixed(1) + 'deg');
+}
+
+// ---------- hook ----------
+$('#hook').innerHTML = `<span class="l a">${HOOK.a}</span><span class="l b"><span>${HOOK.b}</span></span>`;
+function drawHook(t) {
+  const el = $('#hook'), out = prog(t, HOOK.t1 - 0.3, HOOK.t1);
+  el.style.display = t < HOOK.t1 ? 'block' : 'none';
+  const a = el.querySelector('.a'), b = el.querySelector('.b span');
+  const ka = easeBack(prog(t, HOOK.t0, HOOK.t0 + 0.35)), kb = easeBack(prog(t, HOOK.t0 + 0.3, HOOK.t0 + 0.7));
+  a.style.transform = `translateY(${(1 - ka) * -80}px) scale(${lerp(.7, 1, ka)})`;
+  a.style.opacity = prog(t, HOOK.t0, HOOK.t0 + .15);
+  b.style.transform = `scale(${lerp(.3, 1, kb)}) rotate(${lerp(-8, -2.5, kb)}deg)`;
+  b.style.opacity = prog(t, HOOK.t0 + .3, HOOK.t0 + .4);
+  el.style.opacity = 1 - out;
+  el.style.transform = `translateY(${-easeIn(out) * 120}px)`;
+}
+
+// ---------- features ----------
+// a glass list that grows as he names each perk; past five items the oldest slide up and fade
+const FT_ROW = 86, FT_MAX = 5;
+for (const f of FEATURES) {
+  f.el = document.createElement('div'); f.el.className = 'ft glass';
+  f.el.innerHTML = `<span class="n">${f.e}</span><span>${f.text}</span>`;
+  $('#feat').append(f.el);
+}
+function drawFeatures(t) {
+  $('#feat').style.opacity = 1 - prog(t, END.t - .3, END.t);
+  const shift = FEATURES.slice(FT_MAX).reduce((a, f) => a + easeInOut(prog(t, f.t, f.t + .4)), 0);
+  FEATURES.forEach((f, i) => {
+    const k = easeBack(prog(t, f.t, f.t + .45)), slot = i - shift;
+    f.el.style.opacity = t < f.t ? 0 : prog(t, f.t, f.t + .15) * clamp(1 + slot);
+    f.el.style.transform = `translate(${(1 - k) * -60}px, ${(slot - i) * FT_ROW}px) scale(${lerp(.85, 1, k)})`;
+    f.el.classList.toggle('new', t >= f.t && t < f.t + 1.6);
+  });
+}
+
+// ---------- spec cards ----------
+for (const s of SPECS) {
+  s.el = document.createElement('div'); s.el.className = 'spec glass';
+  s.el.innerHTML = `<div class="lbl">${s.label}</div><div class="val"><span></span><small>${s.unit}</small></div><div class="bar"><i></i></div>`;
+  $('#specs').append(s.el);
+}
+function drawSpecs(t) {
+  for (const s of SPECS) {
+    const d = s.d || 2.8, on = t >= s.t && t < s.t + d;
+    s.el.style.opacity = on ? Math.min(prog(t, s.t, s.t + .15), 1 - prog(t, s.t + d - .25, s.t + d)) : 0;
+    if (!on) continue;
+    const k = easeBack(prog(t, s.t, s.t + .45)), o = easeIn(prog(t, s.t + d - .25, s.t + d));
+    s.el.style.transform = `translateY(${(1 - k) * 60 + o * 40}px) scale(${lerp(.8, 1, k)})`;
+    const c = easeOut(prog(t, s.c0 ?? s.t + .1, s.c1 ?? s.t + 1.2));
+    s.el.querySelector('.val span').textContent = fa(Math.round(s.value * c));
+    s.el.querySelector('.bar i').style.width = (100 * c * (s.fill ?? 1)) + '%';
+  }
+}
+
+// ---------- electric sparks (intro, spec reveals, end) ----------
+const fx = $('#fx').getContext('2d');
+const BURSTS = [...SPECS.map(s => ({ t: s.t + .1, x: W / 2, y: 1180 })), { t: END.t + .3, x: W / 2, y: 900 }];
+for (const b of BURSTS) {
+  const r = rng(Math.round(b.t * 1000) + 3);
+  b.parts = Array.from({ length: 26 }, () => ({ a: r() * Math.PI * 2, v: 500 * (.4 + r() * .8), len: 30 + r() * 50 }));
+}
+function drawFx(t) {
+  fx.clearRect(0, 0, W, H);
+  fx.lineCap = 'round';
+  for (const b of BURSTS) {
+    const e = t - b.t;
+    if (e < 0 || e > .9) continue;
+    for (const p of b.parts) {
+      const d = p.v * (1 - Math.exp(-e * 4)) / 4 * 3, a = 1 - prog(e, .35, .9);
+      const x = b.x + Math.cos(p.a) * d, y = b.y + Math.sin(p.a) * d;
+      fx.strokeStyle = `rgba(61,240,255,${a})`; fx.lineWidth = 5; fx.shadowColor = '#3df0ff'; fx.shadowBlur = 14;
+      fx.beginPath(); fx.moveTo(x, y); fx.lineTo(x - Math.cos(p.a) * p.len * (1 - e), y - Math.sin(p.a) * p.len * (1 - e)); fx.stroke();
+    }
+  }
+  fx.shadowBlur = 0;
+}
+
+// ---------- end card ----------
+$('#end .t1').textContent = END.t1;
+$('#end .t2').textContent = END.t2;
+$('#end .t3').textContent = END.t3;
+function drawEnd(t) {
+  const el = $('#end');
+  el.style.opacity = prog(t, END.t, END.t + .25);
+  const k = easeBack(prog(t, END.t + .1, END.t + .6));
+  el.querySelector('.box').style.transform = `scale(${lerp(.6, 1, k)})`;
+  el.querySelector('.t2').style.opacity = prog(t, END.t + .5, END.t + .65);
+  el.querySelector('.t3').style.opacity = prog(t, END.t + .9, END.t + 1.3);
+}
+
+// ---------- frame ----------
+async function renderAt(t) {
+  await drawCamera(t);
+  drawHook(t);
+  drawFeatures(t);
+  drawSpecs(t);
+  drawFx(t);
+  drawCaptions(t);
+  drawEnd(t);
+  $('#bar i').style.width = (100 * clamp(t / END.t)).toFixed(2) + '%';
+  $('#bar').style.opacity = 1 - prog(t, END.t - .2, END.t);
+}
+
+// effects cues for sfx.py
+const SFX = [];
+for (const [i, s] of shots.entries()) if (i) SFX.push({ t: s.t - 0.25, type: 'whoosh', gain: .8 });
+SFX.push({ t: HOOK.t0 + .25, type: 'zap', gain: 1 });
+for (const f of FEATURES) SFX.push({ t: f.t, type: 'pop', gain: .55 });
+for (const s of SPECS) SFX.push({ t: s.t, type: 'zap', gain: .8 });
+SFX.push({ t: END.t - .5, type: 'rise', gain: .6 }, { t: END.t + .15, type: 'zap', gain: 1 });
+
+window.DURATION = DURATION;
+window.SFX = SFX;
+window.renderAt = renderAt;
+window.ready = Promise.all([document.fonts.ready, frameImg(1), measureCues()]);
+
+// ---------- live preview ----------
+if (!RENDER) {
+  const audio = new Audio('assets/source.mp4');
+  let playing = false;
+  async function loop() {
+    if (!playing) return;
+    await renderAt(audio.currentTime);
+    requestAnimationFrame(loop);
+  }
+  $('#play').onclick = () => {
+    playing = !playing;
+    if (playing) { audio.play(); loop(); } else audio.pause();
+  };
+  const fit = () => { const s = Math.min(innerWidth / W, innerHeight / H); $('#stage').style.transform = `scale(${s})`; };
+  addEventListener('resize', fit); fit();
+  window.ready.then(() => renderAt(Number(new URLSearchParams(location.search).get('t') || 0)));
+}
+</script>
+</body>
+</html>
