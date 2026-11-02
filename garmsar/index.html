@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>از چشمِ مشتری</title>
+<style>
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Light.woff2) format("woff2"); font-weight: 300; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Regular.woff2) format("woff2"); font-weight: 400; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Bold.woff2) format("woff2"); font-weight: 700; }
+  @font-face { font-family: Vazirmatn; src: url(fonts/Vazirmatn-Black.woff2) format("woff2"); font-weight: 900; }
+  html, body { margin: 0; height: 100%; background: #1c1b4a; overflow: hidden; }
+  body { display: grid; place-items: center; font-family: Vazirmatn, sans-serif; }
+  #stage { position: relative; width: 1080px; height: 1920px; transform-origin: 50% 50%; }
+  canvas { display: block; }
+  #controls { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); font: 14px system-ui; }
+  #controls button { font: inherit; padding: 6px 14px; border-radius: 999px; border: 1px solid #fff6;
+    background: #0008; color: #fff; cursor: pointer; }
+  .render #controls { display: none; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c" width="1080" height="1920"></canvas></div>
+<div id="controls"><button id="play">پخش</button></div>
+<audio id="voice" src="assets/voice.wav" preload="auto"></audio>
+<script src="prog.js"></script>
+<script>
+const DURATION = 119.1;
+const W = 1080, H = 1920;
+const RENDER = new URLSearchParams(location.search).has('render');
+if (RENDER) document.documentElement.classList.add('render');
+const cv = document.getElementById('c'), x = cv.getContext('2d');
+
+// ---------------- palette ----------------
+const C = {
+  paper: '#F5EFE5', paper2: '#EDE4D6', ink: '#211F5C', purple: '#4B47A6', orange: '#EC6A3E',
+  teal: '#12A59A', soft: '#DCD3C4', mute: '#8E89B5', white: '#FFFDF9', gold: '#F4B740',
+};
+const FONT = 'Vazirmatn';
+
+// ---------------- helpers ----------------
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eo = k => 1 - Math.pow(1 - k, 3);
+const eio = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const eb = k => { const c = 1.9; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+const pop = (t, a, d = .45) => eb(prog(t, a, a + d));
+const fa = n => String(n).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
+function rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
+
+function rr(px, py, w, h, r) { x.beginPath(); x.roundRect(px, py, w, h, r); }
+function font(w, s) { x.font = `${w} ${s}px ${FONT}`; }
+function text(s, px, py, { w = 700, size = 40, color = C.ink, align = 'center', alpha = 1 } = {}) {
+  x.save(); x.globalAlpha *= alpha; font(w, size); x.fillStyle = color; x.textAlign = align;
+  x.textBaseline = 'middle'; x.direction = 'rtl'; x.fillText(s, px, py); x.restore();
+}
+function withT(px, py, s, a, fn, rot = 0) {
+  if (a <= 0 || s <= 0) return;
+  x.save(); x.globalAlpha *= clamp(a); x.translate(px, py); if (rot) x.rotate(rot); x.scale(s, s); fn(); x.restore();
+}
+function shadow(blur = 30, oy = 14, a = .16) { x.shadowColor = `rgba(33,31,92,${a})`; x.shadowBlur = blur; x.shadowOffsetY = oy; }
+function noShadow() { x.shadowColor = 'transparent'; x.shadowBlur = 0; x.shadowOffsetY = 0; }
+
+// ---------------- icons (drawn around 0,0, unit ≈ s) ----------------
+function bag(s, col = C.orange, handle = C.ink) {
+  x.fillStyle = col; rr(-s * .5, -s * .3, s, s * .8, s * .12); x.fill();
+  x.strokeStyle = handle; x.lineWidth = s * .09; x.lineCap = 'round';
+  x.beginPath(); x.arc(0, -s * .3, s * .24, Math.PI, 0); x.stroke();
+}
+function box(s, col = C.purple) {
+  x.fillStyle = col; x.beginPath(); x.moveTo(0, -s * .5); x.lineTo(s * .45, -s * .25); x.lineTo(s * .45, s * .3);
+  x.lineTo(0, s * .55); x.lineTo(-s * .45, s * .3); x.lineTo(-s * .45, -s * .25); x.closePath(); x.fill();
+  x.strokeStyle = C.paper; x.lineWidth = s * .06; x.beginPath(); x.moveTo(-s * .45, -s * .25); x.lineTo(0, 0); x.lineTo(s * .45, -s * .25);
+  x.moveTo(0, 0); x.lineTo(0, s * .55); x.stroke();
+}
+function heart(s, col = C.orange) {
+  x.fillStyle = col; x.beginPath(); x.moveTo(0, s * .45);
+  x.bezierCurveTo(-s * .9, -s * .15, -s * .35, -s * .75, 0, -s * .3);
+  x.bezierCurveTo(s * .35, -s * .75, s * .9, -s * .15, 0, s * .45); x.fill();
+}
+function note(s, col = C.purple) {
+  x.fillStyle = col; x.strokeStyle = col; x.lineWidth = s * .1;
+  x.beginPath(); x.ellipse(-s * .22, s * .3, s * .2, s * .15, -.4, 0, 7); x.fill();
+  x.beginPath(); x.moveTo(-s * .04, s * .28); x.lineTo(-s * .04, -s * .45); x.quadraticCurveTo(s * .2, -s * .3, s * .32, -s * .1); x.stroke();
+}
+function avatar(r, body = C.purple, skin = C.ink, ring = null) {
+  x.save(); x.beginPath(); x.arc(0, 0, r, 0, 7); x.fillStyle = C.paper2; x.fill(); x.clip();
+  x.fillStyle = body; x.beginPath(); x.ellipse(0, r * .95, r * .75, r * .6, 0, 0, 7); x.fill();
+  x.fillStyle = skin; x.beginPath(); x.arc(0, -r * .12, r * .36, 0, 7); x.fill(); x.restore();
+  if (ring) { x.strokeStyle = ring; x.lineWidth = r * .14; x.beginPath(); x.arc(0, 0, r * 1.13, 0, 7); x.stroke(); }
+}
+function check(s, col = C.teal, k = 1) {
+  x.strokeStyle = col; x.lineWidth = s * .18; x.lineCap = 'round'; x.lineJoin = 'round';
+  const p = [[-s * .4, 0], [-s * .1, s * .3], [s * .45, -s * .35]];
+  x.beginPath(); x.moveTo(...p[0]);
+  const a = clamp(k * 2), b = clamp(k * 2 - 1);
+  x.lineTo(lerp(p[0][0], p[1][0], a), lerp(p[0][1], p[1][1], a));
+  if (b > 0) x.lineTo(lerp(p[1][0], p[2][0], b), lerp(p[1][1], p[2][1], b)); x.stroke();
+}
+function cross(s, col = C.orange, k = 1) {
+  x.strokeStyle = col; x.lineWidth = s * .2; x.lineCap = 'round';
+  const a = clamp(k * 2), b = clamp(k * 2 - 1);
+  x.beginPath(); x.moveTo(-s * .4, -s * .4); x.lineTo(lerp(-s * .4, s * .4, a), lerp(-s * .4, s * .4, a)); x.stroke();
+  if (b > 0) { x.beginPath(); x.moveTo(s * .4, -s * .4); x.lineTo(lerp(s * .4, -s * .4, b), lerp(-s * .4, s * .4, b)); x.stroke(); }
+}
+function eye(w, open = 1, iris = C.purple, look = 0) {
+  const h = w * .32 * open;
+  x.save(); x.fillStyle = C.white; x.strokeStyle = C.ink; x.lineWidth = w * .035;
+  x.beginPath(); x.moveTo(-w / 2, 0); x.quadraticCurveTo(0, -h * 2, w / 2, 0); x.quadraticCurveTo(0, h * 2, -w / 2, 0); x.closePath();
+  x.fill(); x.save(); x.clip();
+  x.fillStyle = iris; x.beginPath(); x.arc(look * w * .15, 0, w * .2, 0, 7); x.fill();
+  x.fillStyle = C.ink; x.beginPath(); x.arc(look * w * .15, 0, w * .09, 0, 7); x.fill();
+  x.fillStyle = C.white; x.beginPath(); x.arc(look * w * .15 + w * .06, -w * .06, w * .035, 0, 7); x.fill();
+  x.restore(); x.stroke(); x.restore();
+}
+function shield(s, col = C.orange) {
+  x.fillStyle = col; x.strokeStyle = C.ink; x.lineWidth = s * .05; x.lineJoin = 'round';
+  x.beginPath(); x.moveTo(0, -s * .55); x.lineTo(s * .45, -s * .38); x.lineTo(s * .42, s * .05);
+  x.quadraticCurveTo(s * .35, s * .42, 0, s * .6); x.quadraticCurveTo(-s * .35, s * .42, -s * .42, s * .05);
+  x.lineTo(-s * .45, -s * .38); x.closePath(); x.fill(); x.stroke();
+  x.fillStyle = C.paper; x.beginPath(); x.moveTo(0, -s * .38); x.lineTo(s * .28, -s * .26); x.lineTo(s * .26, s * .03);
+  x.quadraticCurveTo(s * .22, s * .3, 0, s * .42); x.closePath(); x.globalAlpha *= .35; x.fill();
+}
+function plane(s, col = C.purple) {
+  x.fillStyle = col; x.beginPath(); x.moveTo(s * .55, 0); x.lineTo(-s * .5, -s * .4); x.lineTo(-s * .25, 0); x.lineTo(-s * .5, s * .4); x.closePath(); x.fill();
+  x.fillStyle = C.ink; x.beginPath(); x.moveTo(s * .55, 0); x.lineTo(-s * .25, 0); x.lineTo(-s * .3, s * .22); x.closePath(); x.fill();
+}
+function gavel(s, col = C.ink) {
+  x.fillStyle = col;
+  x.save(); x.translate(-s * .05, -s * .12); x.rotate(-.7);
+  rr(-s * .05, -s * .05, s * .72, s * .1, s * .05); x.fill();               // handle
+  rr(-s * .3, -s * .2, s * .3, s * .4, s * .05); x.fill();                   // head
+  rr(-s * .36, -s * .24, s * .08, s * .48, s * .03); x.fill(); rr(-s * .02, -s * .24, s * .08, s * .48, s * .03); x.fill();
+  x.restore();
+  rr(-s * .42, s * .3, s * .5, s * .1, s * .04); x.fill(); rr(-s * .34, s * .22, s * .34, s * .1, s * .04); x.fill();  // block
+}
+function sparkle(s, col = C.gold) {
+  x.fillStyle = col; x.beginPath();
+  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, r = i % 2 ? s * .18 : s * .5; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+  x.closePath(); x.fill();
+}
+function bubble(w, h, col, tail = 1) {
+  rr(-w / 2, -h / 2, w, h, h * .45); x.fillStyle = col; x.fill();
+  x.beginPath(); x.moveTo(tail * w * .3, h / 2 - 4); x.lineTo(tail * w * .38, h / 2 + 22); x.lineTo(tail * w * .16, h / 2 - 4); x.fill();
+}
+function pill(s, px, py, { bg = C.ink, fg = C.paper, size = 34, padX = 28, h = 64, a = 1, sc = 1 } = {}) {
+  font(700, size); const w = x.measureText(s).width + padX * 2;
+  withT(px, py, sc, a, () => { rr(-w / 2, -h / 2, w, h, h / 2); x.fillStyle = bg; x.fill(); text(s, 0, 2, { size, color: fg }); });
+  return w;
+}
+
+// ---------------- phone ----------------
+// draws a phone centred on (cx,cy); returns screen rect
+function phone(cx, cy, w, h, sc = 1, a = 1, inner = null) {
+  withT(cx, cy, sc, a, () => {
+    shadow(50, 26, .22); rr(-w / 2, -h / 2, w, h, w * .13); x.fillStyle = C.ink; x.fill(); noShadow();
+    const m = w * .045, sx = -w / 2 + m, sy = -h / 2 + m, sw = w - 2 * m, sh = h - 2 * m;
+    rr(sx, sy, sw, sh, w * .1); x.fillStyle = C.white; x.fill();
+    x.save(); rr(sx, sy, sw, sh, w * .1); x.clip();
+    if (inner) inner(sx, sy, sw, sh);
+    x.restore();
+    rr(-w * .14, sy + 14, w * .28, 26, 13); x.fillStyle = C.ink; x.fill();
+  });
+}
+// a profile screen; o: {tiles, tileK(i), hl:'none'|'empty'|'warn', bioK, bioText, warn}
+function profile(sx, sy, sw, sh, t, o = {}) {
+  const pad = sw * .07, top = sy + 70;
+  // header
+  x.fillStyle = C.paper2; x.beginPath(); x.arc(sx + sw - pad - 52, top + 52, 52, 0, 7); x.fill();
+  withT(sx + sw - pad - 52, top + 52, 1, 1, () => avatar(46, C.purple, C.ink));
+  for (let i = 0; i < 3; i++) {
+    const bx = sx + pad + i * (sw - 2 * pad - 130) / 3, bw = (sw - 2 * pad - 150) / 3;
+    rr(bx, top + 30, bw * .7, 18, 9); x.fillStyle = C.ink; x.fill();
+    rr(bx, top + 62, bw * .9, 12, 6); x.fillStyle = C.soft; x.fill();
+  }
+  // bio
+  const by = top + 128;
+  if (o.bioText) {
+    const k = o.bioK ?? 1;
+    rr(sx + pad - 10, by - 10, sw - 2 * pad + 20, 84, 18);
+    x.fillStyle = `rgba(236,106,62,${.14 * k})`; x.fill();
+    x.strokeStyle = `rgba(236,106,62,${k})`; x.lineWidth = 4; x.setLineDash([12, 9]); x.stroke(); x.setLineDash([]);
+    const s = o.bioText, n = Math.floor(s.length * clamp(o.typeK ?? 1));
+    text(s.slice(0, n), sx + sw - pad, by + 32, { size: 32, align: 'right', w: 700 });
+  } else {
+    rr(sx + sw - pad - (sw - 2 * pad) * .8, by, (sw - 2 * pad) * .8, 16, 8); x.fillStyle = C.soft; x.fill();
+    rr(sx + sw - pad - (sw - 2 * pad) * .5, by + 32, (sw - 2 * pad) * .5, 16, 8); x.fill();
+  }
+  // highlights
+  const hy = by + 130, hr = 40;
+  for (let i = 0; i < 4; i++) {
+    const hx = sx + sw - pad - hr - i * ((sw - 2 * pad - 2 * hr) / 3);
+    x.beginPath(); x.arc(hx, hy, hr, 0, 7);
+    if (o.hl === 'empty') { x.setLineDash([8, 8]); x.strokeStyle = C.mute; x.lineWidth = 4; x.stroke(); x.setLineDash([]); }
+    else { x.fillStyle = C.paper2; x.fill(); x.strokeStyle = C.soft; x.lineWidth = 4; x.stroke(); }
+  }
+  if (o.hlLabel) pill(o.hlLabel, sx + sw / 2, hy, { bg: C.orange, size: 30, h: 56, sc: o.hlLabelK ?? 1, a: clamp((o.hlLabelK ?? 1) * 2) });
+  // grid
+  const gy = hy + hr + 34, gap = 8, cols = 3, tw = (sw - gap * (cols - 1)) / cols;
+  const n = o.tiles ?? 12;
+  for (let i = 0; i < 12; i++) {
+    const r = Math.floor(i / cols), c = i % cols, tx = sx + sw - (c + 1) * tw - c * gap, ty = gy + r * (tw + gap);
+    const k = o.tileK ? o.tileK(i) : (i < n ? 1 : 0);
+    x.fillStyle = C.paper2; x.fillRect(tx, ty, tw, tw);
+    if (k > 0) withT(tx + tw / 2, ty + tw / 2, eb(clamp(k)), clamp(k * 3), () => {
+      x.fillStyle = (i % 2) ? '#F7D9C9' : '#E2DFF3'; x.fillRect(-tw / 2, -tw / 2, tw, tw);
+      const bob = o.bob ? Math.sin(t * 9 + i) * 6 * o.bob : 0;
+      x.translate(0, bob);
+      if (i % 2) bag(tw * .42); else box(tw * .4);
+    });
+  }
+  if (o.warn) o.warn.forEach(([wx, wy, k]) => {
+    const px = sx + sw * wx, py = wy === 'bio' ? by + 22 : wy === 'hl' ? hy : gy + tw * wy;
+    withT(px, py, eb(clamp(k)), clamp(k * 3), () => {
+      x.fillStyle = `rgba(236,106,62,${.25 + .15 * Math.sin(t * 8)})`; x.beginPath(); x.arc(0, 0, 54 + 8 * Math.sin(t * 8), 0, 7); x.fill();
+      x.fillStyle = C.orange; x.beginPath(); x.moveTo(0, -30); x.lineTo(30, 22); x.lineTo(-30, 22); x.closePath(); x.fill();
+      text('!', 0, 6, { size: 34, w: 900, color: C.white });
+    });
+  });
+  return { gy, tw, hy, by };
+}
+
+// ---------------- script (exact narration) ----------------
+// * marks emphasised words
+const PH = [
+  [0.0, 'این چند وقت با چند تا از صاحب‌پیج‌های'],
+  [2.5, '*گرمسار نشستم حرف زدم.'],
+  [4.6, 'یه چیزی بینشون *مشترک بود'],
+  [6.3, 'که خودشون *نمی‌دیدن.'],
+  [8.3, 'کل پیج،'],
+  [9.5, '*عکسِ *محصوله'],
+  [11.3, 'با یه *آهنگِ *ترند.'],
+  [12.9, 'نه *هایلایتی که آدم بفهمه با کی طرفه،'],
+  [15.9, 'نه *بایویی که بگه چی می‌فروشی'],
+  [17.8, 'و *چطور باید *خرید کنم،'],
+  [19.5, 'نه حتی یه نگاه به اینکه'],
+  [21.3, '*مخاطبش کیه و *کِی آنلاینه.'],
+  [23.8, 'ازش می‌پرسی *پیجت *چطوره؟'],
+  [25.9, 'می‌گه: «خوبه که! داره *جلو می‌ره.»'],
+  [28.8, 'تا یه پیشنهاد کوچیک می‌دی، *گارد می‌گیره.'],
+  [31.9, 'راستش، *حق داره.'],
+  [33.7, 'وقتی *هر *روز پست می‌ذاری'],
+  [35.2, 'و چند تا *لایک می‌گیری،'],
+  [36.8, 'حس می‌کنی داره *جواب می‌ده.'],
+  [38.9, 'ولی *لایک با *خرید فرق داره.'],
+  [41.7, 'بیا یه لحظه از *چشمِ *مشتری نگاه کنیم.'],
+  [44.6, 'یه نفر از *اکسپلور میاد تو پیجت.'],
+  [47.2, 'یه عکسِ *قشنگ از محصول می‌بینه…'],
+  [49.7, 'خب، *این *کیه؟'],
+  [51.4, '*واقعیه؟'],
+  [52.5, 'کسی تا حالا ازش *خرید کرده؟'],
+  [54.8, '*هایلایت رو باز می‌کنه،'],
+  [56.3, '*خالیه.'],
+  [57.5, '*بایو رو می‌خونه،'],
+  [58.6, 'فقط نوشته «ارسال به سراسر کشور».'],
+  [62.0, '*سه *ثانیه بعد،'],
+  [63.2, '*رفته.'],
+  [64.3, 'نه چون محصولت *بد بود؛'],
+  [66.2, 'چون دلیلی برای *اعتماد پیدا نکرد.'],
+  [69.3, '*اعتماد با آهنگِ ترند ساخته *نمی‌شه.'],
+  [72.4, 'با *رضایتِ *مشتری‌هات،'],
+  [74.3, 'با *پشتِ *صحنه،'],
+  [75.8, 'با دیدنِ *چهره‌ی *خودت،'],
+  [77.9, 'با *جواب دادن به *سؤال‌هایی'],
+  [79.5, 'که مشتری روش *نمی‌شه *بپرسه.'],
+  [81.8, 'ما تو *«آنالیز *گرمسار» همین کار رو می‌کنیم:'],
+  [84.9, 'پیجت رو با *چشمِ *مشتری نگاه می‌کنیم،'],
+  [87.6, '*آمارت رو می‌خونیم که ببینیم'],
+  [89.6, 'مخاطب کجا *می‌مونه و کجا *می‌ره،'],
+  [92.0, 'و بهت می‌گیم'],
+  [92.9, 'کجای پیجت داره مشتری رو *فراری می‌ده.'],
+  [96.1, '*بدون *قضاوت؛'],
+  [97.5, 'نه، فقط با *عدد و *داده،'],
+  [99.5, 'بلکه با علمِ *ارتباطِ بینِ *محتوا و *فروش.'],
+  [103.5, 'اگه *رفیقی داری که پیجش'],
+  [105.0, 'پر از *عکسِ *محصوله'],
+  [106.6, 'و مطمئنه *همه‌چی *اوکیه،'],
+  [109.0, 'این ویدیو رو *براش *بفرست.'],
+  [110.8, 'شاید از *زبونِ *ما راحت‌تر قبول کنه'],
+  [113.2, 'و *دریچه‌ی *جدیدی تو ذهنش باز شه.'],
+];
+const SPEECH_END = 116.4;
+const pS = i => PH[i][0];
+
+const CH = [
+  [0, 'گفت‌وگو'], [8.3, 'پیجِ تکراری'], [23.8, 'گارد'], [31.9, 'لایک ≠ خرید'],
+  [41.7, 'از چشمِ مشتری'], [64.3, 'اعتماد'], [81.8, 'آنالیز گرمسار'], [103.5, 'بفرست'],
+];
+
+// ---------------- caption layout ----------------
+const CAP = { size: 78, lh: 118, maxW: 940, cy: 1490 };
+let LAY = [];
+function layout() {
+  LAY = PH.map(([t0, s], pi) => {
+    const t1 = pi + 1 < PH.length ? PH[pi + 1][0] : SPEECH_END;
+    const raw = s.split(' ');
+    const words = raw.map(r => ({ s: r.replace(/\*/g, ''), em: r.includes('*') }));
+    font(900, CAP.size); const sp = x.measureText(' ').width;
+    words.forEach(w => { font(w.em ? 900 : 700, CAP.size); w.w = x.measureText(w.s).width; });
+    // reading-order fractions (for sync with the voice)
+    const total = words.reduce((a, w) => a + w.w, 0) + sp * (words.length - 1);
+    let acc = 0; words.forEach(w => { w.f0 = acc / total; acc += w.w; w.f1 = acc / total; acc += sp; });
+    // line wrap
+    const lines = [[]]; let lw = 0;
+    words.forEach(w => { if (lw + w.w > CAP.maxW && lines.at(-1).length) { lines.push([]); lw = 0; } lines.at(-1).push(w); lw += w.w + sp; });
+    const y0 = CAP.cy - (lines.length - 1) * CAP.lh / 2;
+    lines.forEach((ln, li) => {
+      const wsum = ln.reduce((a, w) => a + w.w, 0) + sp * (ln.length - 1);
+      let r = W / 2 + wsum / 2;
+      ln.forEach(w => { w.xr = r; w.y = y0 + li * CAP.lh; r -= w.w + sp; });
+    });
+    // onset of each word from the original karaoke progress
+    words.forEach((w, wi) => {
+      const thr = w.f0 + (w.f1 - w.f0) * .35;
+      let on = null;
+      for (let i = Math.floor(t0 * 10) + 1; i < Math.floor(t1 * 10); i++) { const p = PROG[i]; if (p >= 0 && p >= thr) { on = i / 10 - .12; break; } }
+      w.on = on ?? lerp(t0, t1 - .3, w.f0);
+      if (wi === 0) w.on = Math.min(w.on, t0 + .05);
+    });
+    for (let i = 1; i < words.length; i++) words[i].on = Math.max(words[i].on, words[i - 1].on + .08);
+    return { t0, t1, words };
+  });
+}
+function drawCaption(t) {
+  for (let pi = 0; pi < LAY.length; pi++) {
+    const L = LAY[pi];
+    if (t < L.t0 - .1 || t > L.t1 + .05) continue;
+    const out = prog(t, L.t1 - .24, L.t1 + .02);
+    const cur = L.words.reduce((c, w, i) => (w.on <= t ? i : c), -1);
+    L.words.forEach((w, i) => {
+      const k = eo(prog(t, w.on, w.on + .32));
+      if (k <= 0) return;
+      const a = k * (1 - out), dy = (1 - k) * 46 - eio(out) * 40;
+      x.save(); x.globalAlpha = a; x.translate(0, dy);
+      // highlighter under the word being spoken
+      if (i === cur && out === 0) {
+        const hk = eo(prog(t, w.on, w.on + .22));
+        x.fillStyle = w.em ? 'rgba(236,106,62,.18)' : 'rgba(75,71,166,.10)';
+        rr(w.xr - w.w * hk - 12, w.y - 44, w.w * hk + 24, 92, 22); x.fill();
+      }
+      font(w.em ? 900 : 700, CAP.size); x.direction = 'rtl'; x.textAlign = 'right'; x.textBaseline = 'middle';
+      x.fillStyle = w.em ? C.orange : C.ink; x.fillText(w.s, w.xr, w.y + 4);
+      x.restore();
+    });
+  }
+}
+
+// ---------------- background ----------------
+let GRAIN;
+function makeGrain() {
+  GRAIN = document.createElement('canvas'); GRAIN.width = 540; GRAIN.height = 960;
+  const g = GRAIN.getContext('2d'), d = g.createImageData(540, 960), r = rng(7);
+  for (let i = 0; i < d.data.length; i += 4) { const v = r() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 14; }
+  g.putImageData(d, 0, 0);
+}
+function drawBg(t) {
+  x.fillStyle = C.paper; x.fillRect(0, 0, W, H);
+  const blobs = [[200, 520, 420, C.orange, .07, .21], [900, 1100, 480, C.purple, .06, .17], [520, 1700, 380, C.teal, .05, .13]];
+  blobs.forEach(([bx, by, r, col, a, sp], i) => {
+    const px = bx + Math.sin(t * sp + i) * 60, py = by + Math.cos(t * sp * .8 + i) * 50;
+    const g = x.createRadialGradient(px, py, 0, px, py, r);
+    g.addColorStop(0, col + Math.round(a * 255).toString(16).padStart(2, '0')); g.addColorStop(1, col + '00');
+    x.fillStyle = g; x.fillRect(px - r, py - r, 2 * r, 2 * r);
+  });
+  // dot grid
+  x.fillStyle = 'rgba(33,31,92,.08)';
+  for (let gy = 260; gy < 1260; gy += 48) for (let gx = 36; gx < W; gx += 48) { x.beginPath(); x.arc(gx, gy, 2.2, 0, 7); x.fill(); }
+  x.drawImage(GRAIN, 0, 0, W, H);
+}
+function chapterAt(t) { let c = 0; CH.forEach(([s], i) => { if (t >= s - .3) c = i; }); return c; }
+function drawChrome(t) {
+  const endK = prog(t, SPEECH_END, SPEECH_END + .5);
+  x.save(); x.globalAlpha = 1 - endK;
+  const ci = chapterAt(t), cs = CH[ci][0], k = eo(prog(t, cs - .3, cs + .4));
+  // chapter number + title
+  x.save(); x.beginPath(); x.rect(0, 70, W, 140); x.clip();
+  const dy = (1 - k) * 90;
+  text(fa(String(ci + 1).padStart(2, '0')), W - 70, 140 + dy, { size: 92, w: 900, color: C.orange, align: 'right' });
+  text(CH[ci][1], W - 210, 128 + dy, { size: 44, w: 900, align: 'right' });
+  text(`فصل ${fa(ci + 1)} از ${fa(CH.length)}`, W - 210, 178 + dy, { size: 26, w: 400, color: C.mute, align: 'right' });
+  x.restore();
+  // brand tag
+  text('آنالیز گرمسار', 70, 140, { size: 30, w: 700, color: C.purple, align: 'left' });
+  x.fillStyle = C.teal; x.beginPath(); x.arc(58 + 0, 140, 0, 0, 7); x.fill();
+  // rule
+  x.fillStyle = C.ink; x.fillRect(70, 232, W - 140, 3);
+  // caption frame marks
+  x.fillStyle = C.soft; x.fillRect(W / 2 - 60, 1300, 120, 6);
+  // progress with chapter ticks
+  const py = 1800, pw = W - 140, pk = clamp(t / SPEECH_END);
+  rr(70, py - 4, pw, 8, 4); x.fillStyle = C.soft; x.fill();
+  rr(70 + pw * (1 - pk), py - 4, pw * pk, 8, 4); x.fillStyle = C.ink; x.fill();
+  CH.forEach(([s], i) => {
+    const tx = 70 + pw * (1 - s / SPEECH_END), on = t >= s;
+    x.fillStyle = on ? C.orange : C.soft; x.beginPath(); x.arc(tx, py, on ? 11 : 8, 0, 7); x.fill();
+  });
+  x.restore();
+}
+
+// ================= scenes =================
+// each scene draws the illustration area (y≈260–1260) for absolute time t
+const CX = 540, CY = 760;
+
+function scene1(t) {
+  const owners = [[-330, -170], [-170, -330], [170, -330], [330, -170], [0, -400]];
+  const me = [0, 250];
+  const meK = pop(t, 2.5);
+  // connection lines to the shared secret
+  const sk = eo(prog(t, pS(2), pS(2) + 1));
+  owners.forEach(([ox, oy], i) => {
+    const k = pop(t, .15 + i * .35);
+    // dotted talk line from me
+    const lk = eo(prog(t, 2.7 + i * .2, 3.4 + i * .2));
+    if (lk > 0) {
+      x.save(); x.setLineDash([4, 16]); x.lineCap = 'round'; x.lineWidth = 8; x.strokeStyle = C.mute; x.lineDashOffset = -t * 40;
+      x.beginPath(); x.moveTo(CX + me[0], CY + me[1]); x.lineTo(CX + lerp(me[0], ox, lk), CY + lerp(me[1], oy, lk)); x.stroke(); x.restore();
+    }
+    if (sk > 0) {
+      x.save(); x.lineWidth = 5; x.strokeStyle = C.orange; x.globalAlpha = sk;
+      x.beginPath(); x.moveTo(CX + ox, CY + oy); x.lineTo(CX + lerp(ox, 0, sk), CY + lerp(oy, -40, sk)); x.stroke(); x.restore();
+    }
+    withT(CX + ox, CY + oy, k, k, () => {
+      shadow(20, 10, .15); avatar(70, i % 2 ? C.purple : C.teal, C.ink, C.orange); noShadow();
+      // blindfold – “they couldn't see it”
+      const bk = eo(prog(t, pS(3) + .1 + i * .12, pS(3) + .5 + i * .12));
+      if (bk > 0) { x.fillStyle = C.ink; rr(-62 * bk, -26, 124 * bk, 26, 13); x.fill(); }
+      // tiny shop tag
+      withT(52, 52, .9, 1, () => { x.fillStyle = C.white; x.beginPath(); x.arc(0, 0, 26, 0, 7); x.fill(); bag(26); });
+    });
+  });
+  // me
+  withT(CX + me[0], CY + me[1], meK, meK, () => {
+    shadow(20, 10, .15); avatar(88, C.orange, C.ink, C.ink); noShadow();
+    text('من', 0, 130, { size: 34, w: 900 });
+    // talk dots
+    for (let i = 0; i < 3; i++) {
+      const b = Math.sin(t * 10 - i) * .5 + .5;
+      withT(-150 + i * 34, -80 - b * 10, 1, prog(t, 2.6, 2.9) * (1 - prog(t, 4.4, 4.7)), () => { x.fillStyle = C.purple; x.beginPath(); x.arc(0, 0, 11, 0, 7); x.fill(); });
+    }
+  });
+  // the common thing
+  const qk = pop(t, pS(2) + .5, .6);
+  withT(CX, CY - 40, qk, qk, () => {
+    x.fillStyle = C.ink; x.beginPath(); x.arc(0, 0, 96 + 6 * Math.sin(t * 4), 0, 7); x.fill();
+    x.strokeStyle = C.orange; x.lineWidth = 6; x.setLineDash([10, 12]); x.lineDashOffset = t * 30;
+    x.beginPath(); x.arc(0, 0, 124, 0, 7); x.stroke(); x.setLineDash([]);
+    const rk = prog(t, pS(3) + .6, pS(3) + 1.2);
+    text('؟', 0, 6, { size: 110, w: 900, color: C.paper, alpha: 1 - rk });
+    withT(0, 0, rk, rk, () => bag(90, C.orange, C.paper));
+  });
+}
+
+function scene2(t) {
+  const t0 = pS(4);
+  const shift = eio(prog(t, pS(7) - .3, pS(7) + .5));
+  const pk = eo(prog(t, t0, t0 + .7));
+  const px = lerp(CX, 330, shift), pyy = CY + (1 - pk) * 900, sc = lerp(1, .82, shift);
+  const hlK = prog(t, pS(7), pS(7) + .5);
+  phone(px, pyy, 520, 960, sc, 1, (sx, sy, sw, sh) => {
+    profile(sx, sy, sw, sh, t, {
+      tileK: i => prog(t, pS(5) + i * .1, pS(5) + i * .1 + .4),
+      bob: prog(t, pS(6), pS(6) + .3),
+      hl: hlK > 0 ? 'empty' : 'none',
+    });
+  });
+  // notes from the trending song
+  const nk = prog(t, pS(6), pS(6) + .3) * (1 - shift * .7);
+  if (nk > 0) {
+    for (let i = 0; i < 7; i++) {
+      const ph = (t * .5 + i / 7) % 1;
+      withT(px + Math.sin(i * 2.3 + t) * 220, pyy - 300 - ph * 300, .8 + .3 * Math.sin(i), nk * Math.sin(ph * Math.PI), () => note(70, i % 2 ? C.purple : C.orange), Math.sin(t * 3 + i) * .3);
+    }
+    pill('♪  آهنگ ترند', px, pyy - 560, { bg: C.purple, sc: pop(t, pS(6) + .2), a: nk });
+  }
+  // missing checklist
+  const items = [[pS(7), 'هایلایت'], [pS(8), 'بایو'], [pS(9), 'راهنمای خرید'], [pS(10) + .3, 'مخاطب'], [pS(11) + .3, 'ساعتِ آنلاین']];
+  items.forEach(([s, lbl], i) => {
+    const k = eo(prog(t, s, s + .5)), y = CY - 400 + i * 175;
+    if (k <= 0) return;
+    withT(800 + (1 - k) * 400, y, 1, k, () => {
+      shadow(24, 12, .12); rr(-200, -64, 400, 128, 28); x.fillStyle = C.white; x.fill(); noShadow();
+      text(lbl, 150, 2, { size: 40, w: 900, align: 'right' });
+      withT(-140, 0, 1, 1, () => { x.fillStyle = 'rgba(236,106,62,.14)'; x.beginPath(); x.arc(0, 0, 42, 0, 7); x.fill(); cross(52, C.orange, prog(t, s + .35, s + .75)); });
+    });
+  });
+}
+
+function scene3(t) {
+  const t0 = pS(12);
+  // chat card
+  const ck = eo(prog(t, t0 - .1, t0 + .5));
+  withT(CX, CY + (1 - ck) * 200, 1, ck, () => {
+    shadow(50, 24, .18); rr(-430, -460, 860, 920, 60); x.fillStyle = C.white; x.fill(); noShadow();
+    // header
+    withT(330, -380, 1, 1, () => avatar(46, C.teal, C.ink, C.orange));
+    text('صاحبِ پیج', 260, -392, { size: 34, w: 900, align: 'right' });
+    text('آنلاین', 260, -352, { size: 24, w: 400, color: C.teal, align: 'right' });
+    x.fillStyle = C.paper2; x.fillRect(-430, -310, 860, 3);
+    // me → question
+    const b1 = pop(t, t0 + .2);
+    withT(-120, -200, b1, b1, () => { bubble(420, 110, C.purple, -1); text('پیجت چطوره؟', 0, 2, { size: 42, w: 900, color: C.white }); });
+    // owner → answer
+    const b2 = pop(t, pS(13) + .2);
+    withT(110, -30, b2, b2, () => {
+      bubble(520, 120, C.paper2, 1); text('خوبه که! داره جلو می‌ره', 20, 2, { size: 38, w: 900 });
+      withT(-215, 0, 1, 1, () => { x.strokeStyle = C.teal; x.lineWidth = 8; x.lineCap = 'round'; x.lineJoin = 'round'; x.beginPath(); x.moveTo(-26, 18); x.lineTo(-6, -2); x.lineTo(6, 8); x.lineTo(26, -18); x.stroke(); });
+    });
+    // me → small suggestion (typing first)
+    const ty = prog(t, pS(14), pS(14) + .8), b3 = pop(t, pS(14) + .8);
+    if (ty > 0 && b3 <= .01) withT(-250, 150, 1, 1, () => { bubble(150, 80, C.purple, -1); for (let i = 0; i < 3; i++) { x.fillStyle = C.white; x.beginPath(); x.arc(-34 + i * 34, -Math.abs(Math.sin(t * 9 - i)) * 8, 9, 0, 7); x.fill(); } });
+    withT(-90, 150, b3, b3, () => { bubble(480, 110, C.purple, -1); text('یه پیشنهاد کوچیک دارم…', 0, 2, { size: 38, w: 900, color: C.white }); });
+  });
+  // shield slams up
+  const sh = prog(t, pS(14) + 1.5, pS(14) + 1.9);
+  if (sh > 0) {
+    const shake = sh < 1 ? 0 : Math.sin(t * 60) * 10 * Math.max(0, 1 - (t - pS(14) - 1.9) * 3);
+    withT(CX + 160 + shake, CY + 120 + (1 - eb(sh)) * 700, 1, 1, () => { shadow(40, 20, .25); shield(420); noShadow(); text('گارد', 0, 20, { size: 70, w: 900, color: C.white }); });
+  }
+}
+
+function scene4(t) {
+  const t0 = pS(15);
+  // “he's right” — a stamp
+  const sk = pop(t, t0 + .1), so = prog(t, pS(16) - .2, pS(16) + .2);
+  withT(CX, CY - 40, sk * (1 - so * .3), sk * (1 - so), () => {
+    x.save(); x.rotate(-.08); x.strokeStyle = C.teal; x.lineWidth = 10; rr(-260, -110, 520, 220, 40); x.stroke();
+    text('حق داره', 0, 6, { size: 110, w: 900, color: C.teal }); x.restore();
+  });
+  // daily posts
+  const days = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه'];
+  const split = eio(prog(t, pS(19) - .2, pS(19) + .6));
+  days.forEach((d, i) => {
+    const s = pS(16) + i * .22, k = eo(prog(t, s, s + .45));
+    if (k <= 0) return;
+    const fx = CX + (i - 2) * 46, fy = CY - 120 - i * 12;
+    withT(fx + (1 - k) * 600, fy, 1, k * (1 - split), () => {
+      x.rotate((i - 2) * .06);
+      shadow(24, 10, .14); rr(-170, -200, 340, 400, 30); x.fillStyle = C.white; x.fill(); noShadow();
+      rr(-140, -170, 280, 260, 20); x.fillStyle = i % 2 ? '#F7D9C9' : '#E2DFF3'; x.fill();
+      withT(0, -40, 1, 1, () => i % 2 ? bag(130) : box(120));
+      text(d, 120, 140, { size: 30, w: 700, color: C.mute, align: 'right' });
+    });
+  });
+  // likes counter
+  const lk = prog(t, pS(17), pS(17) + .4), cnt = Math.round(lerp(16, 48, eio(prog(t, pS(17) + .2, pS(18) + 1.2))));
+  if (lk > 0) {
+    withT(CX, CY + 230, eb(lk), lk * (1 - split), () => {
+      shadow(30, 14, .16); rr(-200, -70, 400, 140, 70); x.fillStyle = C.ink; x.fill(); noShadow();
+      withT(110, 0, 1 + .12 * Math.sin(t * 10), 1, () => heart(80));
+      text(fa(cnt) + ' لایک', -30, 4, { size: 54, w: 900, color: C.white });
+    });
+    for (let i = 0; i < 9; i++) {
+      const ph = ((t - pS(17)) * .6 + i / 9) % 1;
+      withT(CX + Math.sin(i * 1.7) * 380, CY + 160 - ph * 520, .5 + (i % 3) * .2, lk * Math.sin(ph * Math.PI) * (1 - split), () => heart(70, i % 2 ? C.orange : C.purple));
+    }
+  }
+  // rising chart: “feels like it's working”
+  const gk = eo(prog(t, pS(18), pS(18) + 1.2));
+  if (gk > 0) {
+    x.save(); x.globalAlpha = 1 - split; x.strokeStyle = C.teal; x.lineWidth = 12; x.lineCap = 'round'; x.lineJoin = 'round';
+    x.beginPath(); const pts = [[-380, 440], [-220, 400], [-80, 420], [80, 330], [220, 300], [380, 180]];
+    pts.forEach(([a, b], i) => { const kk = clamp(gk * 5 - i); if (kk > 0 || i === 0) x.lineTo(CX + a, CY + b); }); x.stroke(); x.restore();
+  }
+  // like ≠ purchase
+  if (split > 0) {
+    withT(CX + 250, CY - 30, eb(split), split, () => {
+      x.fillStyle = 'rgba(236,106,62,.12)'; x.beginPath(); x.arc(0, 0, 210, 0, 7); x.fill(); heart(250);
+      text('لایک', 0, 270, { size: 52, w: 900 });
+    });
+    withT(CX - 250, CY - 30, eb(prog(t, pS(19) + .3, pS(19) + .9)), split, () => {
+      x.fillStyle = 'rgba(75,71,166,.12)'; x.beginPath(); x.arc(0, 0, 210, 0, 7); x.fill(); bag(220, C.purple, C.ink);
+      text('خرید', 0, 270, { size: 52, w: 900 });
+    });
+    const nk = eo(prog(t, pS(19) + .8, pS(19) + 1.3));
+    withT(CX, CY - 30, 1, nk, () => {
+      x.strokeStyle = C.ink; x.lineWidth = 18; x.lineCap = 'round';
+      x.beginPath(); x.moveTo(-60 * nk, -28); x.lineTo(60 * nk, -28); x.moveTo(-60 * nk, 28); x.lineTo(60 * nk, 28); x.stroke();
+      x.strokeStyle = C.orange; x.beginPath(); x.moveTo(30 * nk, -80 * nk); x.lineTo(-30 * nk, 80 * nk); x.stroke();
+    });
+  }
+}
+
+function scene5(t) {
+  const t0 = pS(20);
+  // the big eye, then it moves up and becomes the “camera”
+  const ek = eo(prog(t, t0, t0 + .6)), blink = Math.max(0, 1 - Math.abs((t - (t0 + 1.6)) * 8)), up = eio(prog(t, pS(21) - .2, pS(21) + .6));
+  withT(CX, lerp(CY, 330, up), lerp(1, .38, up), ek, () => {
+    eye(560, ek * (1 - blink * .9), C.purple, Math.sin(t * 1.4) * .5);
+    text('چشمِ مشتری', 0, 230, { size: 50, w: 900, color: C.purple, alpha: 1 - up });
+  });
+  // light cone from eye to phone
+  if (up > 0) {
+    x.save(); x.globalAlpha = .12 * up; x.fillStyle = C.purple;
+    x.beginPath(); x.moveTo(CX - 40, 360); x.lineTo(CX - 280, 1220); x.lineTo(CX + 280, 1220); x.lineTo(CX + 40, 360); x.fill(); x.restore();
+  }
+  const pk = eo(prog(t, pS(21), pS(21) + .7));
+  const ins = eio(prog(t, pS(22) - .1, pS(22) + .5));     // showing one product photo
+  const prof = eio(prog(t, pS(26) - .2, pS(26) + .3));    // back to the profile
+  const gone = eio(prog(t, pS(31), pS(31) + .5));
+  phone(CX, CY + 110 + (1 - pk) * 900, 470, 860, 1, 1 - gone * .5, (sx, sy, sw, sh) => {
+    if (prof > 0 || ins < 1) {
+      x.save(); x.globalAlpha = ins < 1 ? 1 - ins : prof;
+      profile(sx, sy, sw, sh, t, {
+        hl: prof > 0 ? 'empty' : 'none',
+        hlLabel: prog(t, pS(27), pS(27) + .3) > 0 ? 'خالیه' : null, hlLabelK: pop(t, pS(27)),
+        bioText: prof > 0 && t >= pS(28) ? 'ارسال به سراسر کشور' : null,
+        bioK: eo(prog(t, pS(28), pS(28) + .4)), typeK: prog(t, pS(29) + .2, pS(29) + 2),
+      });
+      x.restore();
+    }
+    if (ins > 0 && prof < 1) {
+      x.save(); x.globalAlpha = ins * (1 - prof);
+      x.fillStyle = '#F7D9C9'; x.fillRect(sx, sy + 120, sw, sw * 1.15);
+      const zz = 1 + (t - pS(22)) * .03;
+      withT(sx + sw / 2, sy + 120 + sw * .58, zz, 1, () => bag(sw * .5));
+      for (let i = 0; i < 4; i++) {
+        const tw = Math.max(0, Math.sin(t * 4 + i * 1.7));
+        withT(sx + sw * (.18 + .22 * i), sy + 170 + (i % 2) * sw * .9, tw, tw, () => sparkle(46));
+      }
+      withT(sx + 50, sy + 120 + sw * 1.15 + 50, 1, 1, () => heart(44, C.orange));
+      rr(sx + 30, sy + 120 + sw * 1.15 + 100, sw * .6, 16, 8); x.fillStyle = C.soft; x.fill();
+      x.restore();
+    }
+  });
+  // the visitor
+  const vk = eo(prog(t, pS(21) + .3, pS(21) + 1.3));
+  const vx = lerp(1180, 900, vk) + gone * 500, vy = CY + 370;
+  if (vk > 0) {
+    // trail from explore
+    x.save(); x.setLineDash([3, 18]); x.lineCap = 'round'; x.lineWidth = 8; x.strokeStyle = C.teal; x.globalAlpha = .6 * (1 - gone);
+    x.beginPath(); x.moveTo(1100, CY - 50); x.quadraticCurveTo(1000, CY + 300, vx, vy); x.stroke(); x.restore();
+    withT(vx, vy, 1, 1, () => { shadow(20, 10, .2); avatar(70, C.teal, C.ink, C.teal); noShadow(); });
+    pill('از اکسپلور', vx - 10, vy + 112, { bg: C.teal, size: 28, h: 54, a: vk * (1 - prog(t, pS(22), pS(22) + .3)) });
+    // questions
+    const qs = [[pS(23), 'این کیه؟', -190, -150], [pS(24), 'واقعیه؟', -40, -300], [pS(25), 'کسی خرید کرده؟', -270, -40]];
+    qs.forEach(([s, q, ox, oy], i) => {
+      const k = pop(t, s + .1), o = prog(t, pS(26) - .3, pS(26));
+      withT(vx + ox, vy + oy, k, k * (1 - o), () => { shadow(16, 8, .14); bubble(q.length * 22 + 70, 84, C.white, 1); noShadow(); text(q, 0, 2, { size: 34, w: 900, color: i === 2 ? C.orange : C.ink }); });
+    });
+    // 3-second countdown
+    const cd0 = pS(30), cdk = prog(t, cd0, pS(31));
+    if (cdk > 0 && gone < 1) {
+      withT(vx, vy, 1, 1 - gone, () => {
+        x.strokeStyle = C.orange; x.lineWidth = 12; x.lineCap = 'round';
+        x.beginPath(); x.arc(0, 0, 100, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - cdk)); x.stroke();
+        const n = 3 - Math.min(2, Math.floor(cdk * 3));
+        pill(fa(n), 0, -150, { bg: C.orange, size: 46, h: 76, padX: 24 });
+      });
+    }
+  }
+  if (gone > 0) {
+    // “gone” — speed lines
+    for (let i = 0; i < 5; i++) {
+      x.save(); x.globalAlpha = (1 - prog(t, pS(31) + .5, pS(31) + 1.1)) * .8; x.strokeStyle = C.teal; x.lineWidth = 8; x.lineCap = 'round';
+      const yy = vy - 60 + i * 30, len = 160 * gone;
+      x.beginPath(); x.moveTo(vx - 120 - len, yy); x.lineTo(vx - 120, yy); x.stroke(); x.restore();
+    }
+    text('خروج', CX + 330, vy + 150, { size: 44, w: 900, color: C.orange, alpha: eo(prog(t, pS(31) + .2, pS(31) + .6)) });
+  }
+}
+
+function scene6(t) {
+  const t0 = pS(32);
+  // good product badge
+  const gk = pop(t, t0 + .1), up = eio(prog(t, pS(33) - .1, pS(33) + .5));
+  withT(lerp(CX, 260, up), lerp(CY - 50, CY + 340, up), lerp(1, .6, up), gk, () => {
+    shadow(30, 14, .14); rr(-170, -170, 340, 340, 50); x.fillStyle = C.white; x.fill(); noShadow();
+    box(170, C.purple);
+    withT(120, -120, 1, 1, () => { x.fillStyle = C.teal; x.beginPath(); x.arc(0, 0, 56, 0, 7); x.fill(); check(64, C.white, prog(t, t0 + .4, t0 + .9)); });
+    text('محصولِ خوب', 0, 230, { size: 44, w: 900 });
+  });
+  // the trust tower
+  const bx = 640, base = CY + 460, bw = 520, bh = 132;
+  const fk = eo(prog(t, pS(33), pS(33) + .6));
+  if (fk > 0) {
+    x.save(); x.globalAlpha = fk; x.setLineDash([14, 12]); x.strokeStyle = C.mute; x.lineWidth = 5;
+    rr(bx - bw / 2, base - bh * 4 - 160, bw, bh * 4 + 160, 30); x.stroke(); x.setLineDash([]);
+    x.fillStyle = C.ink; rr(bx - bw / 2 - 30, base, bw + 60, 24, 12); x.fill(); x.restore();
+    const qk = 1 - prog(t, pS(35) - .1, pS(35) + .2);
+    text('اعتماد؟', bx, base - bh * 2 - 80, { size: 70, w: 900, color: C.mute, alpha: fk * qk });
+  }
+  // the trendy-song brick fails
+  const sk = prog(t, pS(34), pS(34) + 2.4);
+  if (sk > 0 && sk < 1) {
+    const fall = clamp((sk - .45) / .55), yy = lerp(base - bh * 5, base - bh / 2, eo(clamp(sk / .4))) + fall * fall * 900;
+    withT(bx + fall * 120, yy, 1, 1 - fall, () => {
+      x.rotate(fall * .9);
+      rr(-bw / 2 + 20, -bh / 2, bw - 40, bh - 10, 22); x.fillStyle = C.paper2; x.fill(); x.strokeStyle = C.mute; x.lineWidth = 4; x.stroke();
+      withT(150, 0, 1, 1, () => note(70, C.mute));
+      text('آهنگِ ترند', -30, 2, { size: 40, w: 900, color: C.mute });
+      if (sk > .3) withT(0, 0, 1, 1, () => cross(120, C.orange, clamp((sk - .3) * 6)));
+    });
+  }
+  const bricks = [[pS(35), 'رضایتِ مشتری‌ها', C.purple], [pS(36), 'پشتِ صحنه', C.teal], [pS(37), 'چهره‌ی خودت', C.orange], [pS(38), 'جواب به سؤال‌ها', C.ink]];
+  bricks.forEach(([s, lbl, col], i) => {
+    const k = prog(t, s, s + .55); if (k <= 0) return;
+    const yy = lerp(260, base - bh / 2 - i * bh, eb(k));
+    withT(bx, yy, 1, clamp(k * 4), () => {
+      shadow(18, 10, .2); rr(-bw / 2 + 10, -bh / 2 + 6, bw - 20, bh - 12, 24); x.fillStyle = col; x.fill(); noShadow();
+      text(lbl, 0, 4, { size: 44, w: 900, color: C.white });
+    });
+  });
+  // the crown
+  const ck = prog(t, pS(39) + .2, pS(39) + .8);
+  if (ck > 0) {
+    const yy = lerp(200, base - bh * 4 - 80, eb(ck));
+    withT(bx, yy, 1, clamp(ck * 4), () => {
+      const glow = .5 + .5 * Math.sin(t * 5);
+      x.fillStyle = `rgba(244,183,64,${.25 + .15 * glow})`; rr(-bw / 2 - 30, -90, bw + 60, 180, 70); x.fill();
+      shadow(24, 12, .25); rr(-bw / 2, -66, bw, 132, 66); x.fillStyle = C.gold; x.fill(); noShadow();
+      text('اعتماد', 0, 4, { size: 72, w: 900, color: C.ink });
+    });
+    for (let i = 0; i < 6; i++) { const tw = Math.max(0, Math.sin(t * 3 + i * 1.3)); withT(bx + Math.cos(i) * 330, yy - 100 + Math.sin(i * 2) * 120, tw * ck, tw, () => sparkle(50)); }
+  }
+}
+
+let IMG = {};
+function scene7(t) {
+  const t0 = pS(40);
+  const lk = pop(t, t0 + .2, .6), lo = eio(prog(t, pS(41) - .3, pS(41) + .4));
+  const back = eio(prog(t, pS(48) - .2, pS(48) + .5));
+  // brand badge
+  const bsc = lerp(1, .42, lo) * (1 - back) + back * .62, bxp = lerp(CX, 900, lo * (1 - back)) * 1, byp = lerp(CY - 60, 350, lo) * (1 - back) + back * (CY - 230);
+  withT(lerp(bxp, CX, back), byp, lk * bsc, lk, () => {
+    x.save(); x.beginPath(); x.arc(0, 0, 250, 0, 7); x.fillStyle = C.ink; x.fill(); x.clip();
+    x.globalCompositeOperation = 'lighter'; x.drawImage(IMG.analyz, -230, -250, 460, 523); x.restore();
+    x.strokeStyle = C.teal; x.lineWidth = 10; x.beginPath(); x.arc(0, 0, 262, 0, 7); x.stroke();
+    text('آنالیز گرمسار', 0, 330, { size: 80, w: 900, alpha: 1 - lo + back });
+  });
+  // phone + lens scan
+  const pk = eo(prog(t, pS(41) - .2, pS(41) + .5)) * (1 - eio(prog(t, pS(46) - .2, pS(46) + .3)));
+  const big = eio(prog(t, pS(45) - .3, pS(45) + .4));
+  const px = lerp(320, CX, big), psc = lerp(.78, 1, big);
+  if (pk > 0) {
+    phone(px + (1 - pk) * -700, CY + 80, 500, 920, psc, 1, (sx, sy, sw, sh) => {
+      profile(sx, sy, sw, sh, t, {
+        hl: 'empty',
+        warn: [[.5, 'hl', prog(t, pS(45) + .3, pS(45) + .7)], [.75, 'bio', prog(t, pS(45) + .8, pS(45) + 1.2)], [.28, 1.6, prog(t, pS(45) + 1.3, pS(45) + 1.7)]],
+      });
+    });
+    // lens
+    const lensK = prog(t, pS(41), pS(41) + .4) * (1 - big);
+    if (lensK > 0) {
+      const a = (t - pS(41)) * 1.4, lx = px + Math.cos(a) * 120, ly = CY + Math.sin(a * 1.3) * 260;
+      withT(lx, ly, eb(lensK), lensK, () => {
+        x.fillStyle = 'rgba(18,165,154,.15)'; x.beginPath(); x.arc(0, 0, 110, 0, 7); x.fill();
+        x.strokeStyle = C.teal; x.lineWidth = 18; x.beginPath(); x.arc(0, 0, 110, 0, 7); x.stroke();
+        x.lineCap = 'round'; x.lineWidth = 30; x.strokeStyle = C.ink; x.beginPath(); x.moveTo(82, 82); x.lineTo(170, 170); x.stroke();
+      });
+    }
+  }
+  // retention chart
+  const ck = eo(prog(t, pS(42), pS(42) + .5)) * (1 - big);
+  if (ck > 0) {
+    withT(770, CY - 20, 1, ck, () => {
+      shadow(30, 14, .14); rr(-230, -300, 460, 600, 40); x.fillStyle = C.white; x.fill(); noShadow();
+      text('آمارِ پیج', 170, -245, { size: 34, w: 900, align: 'right' });
+      x.strokeStyle = C.soft; x.lineWidth = 4; x.beginPath(); x.moveTo(-180, -190); x.lineTo(-180, 220); x.lineTo(190, 220); x.stroke();
+      const dk = prog(t, pS(42) + .3, pS(42) + 1.8);
+      x.save(); x.beginPath(); x.rect(-190, -260, 390 * dk, 500); x.clip();
+      x.strokeStyle = C.purple; x.lineWidth = 10; x.lineCap = 'round'; x.lineJoin = 'round'; x.beginPath();
+      for (let i = 0; i <= 40; i++) { const u = i / 40, ss = clamp((u - .3) / .45), d = ss * ss * (3 - 2 * ss), yv = -170 + 340 * (.08 * u + .72 * d); x.lineTo(-180 + u * 360, yv); }
+      x.stroke(); x.restore();
+      const m1 = pop(t, pS(43) + .5), m2 = pop(t, pS(43) + 1.2);
+      withT(-95, -140, m1, m1, () => { x.fillStyle = C.teal; x.beginPath(); x.arc(0, 0, 16, 0, 7); x.fill(); pill('می‌مونه', 40, -60, { bg: C.teal, size: 28, h: 52 }); });
+      withT(80, 75, m2, m2, () => { x.fillStyle = C.orange; x.beginPath(); x.arc(0, 0, 16, 0, 7); x.fill(); pill('می‌ره', 0, 66, { bg: C.orange, size: 28, h: 52 }); });
+    });
+  }
+  // without judgement
+  const jk = pop(t, pS(46) + .1), jo = prog(t, pS(47) - .2, pS(47) + .2);
+  withT(CX, CY - 20, jk, jk * (1 - jo), () => {
+    x.fillStyle = C.white; shadow(30, 14, .14); x.beginPath(); x.arc(0, 0, 220, 0, 7); x.fill(); noShadow();
+    gavel(260, C.ink);
+    const rk = eo(prog(t, pS(46) + .4, pS(46) + 1));
+    x.strokeStyle = C.orange; x.lineWidth = 26; x.lineCap = 'round';
+    x.beginPath(); x.arc(0, 0, 175, -Math.PI * .75, -Math.PI * .75 + Math.PI * 2 * rk); x.stroke();
+    if (rk >= 1) { const lk = eo(prog(t, pS(46) + 1, pS(46) + 1.3)); x.beginPath(); x.moveTo(-124, -124); x.lineTo(-124 + 248 * lk, -124 + 248 * lk); x.stroke(); }
+  });
+  // numbers & data
+  const dk = prog(t, pS(47), pS(47) + .3) * (1 - back);
+  if (dk > 0) {
+    const vals = [.35, .55, .42, .78, .62, .92];
+    vals.forEach((v, i) => {
+      const k = eo(prog(t, pS(47) + .2 + i * .12, pS(47) + .8 + i * .12)), bx = CX + 250 - i * 100;
+      x.save(); x.globalAlpha = dk; rr(bx - 34, CY + 300 - 560 * v * k, 68, 560 * v * k, 18); x.fillStyle = i === 5 ? C.orange : (i % 2 ? C.purple : C.teal); x.fill();
+      text(fa(Math.round(v * 100 * k)) + '٪', bx, CY + 340, { size: 30, w: 700, color: C.mute }); x.restore();
+    });
+  }
+  // content ↔ sales
+  if (back > 0) {
+    const n1 = pop(t, pS(48) + 1.3), n2 = pop(t, pS(48) + 1.9), lnk = eo(prog(t, pS(48) + 2.1, pS(48) + 2.9));
+    const A = [CX + 280, CY + 260], B = [CX - 280, CY + 260];
+    if (lnk > 0) {
+      x.save(); x.strokeStyle = C.orange; x.lineWidth = 12; x.lineCap = 'round';
+      x.beginPath(); for (let i = 0; i <= 30 * lnk; i++) { const u = i / 30; x.lineTo(lerp(A[0], B[0], u), A[1] - Math.sin(u * Math.PI) * 140); } x.stroke(); x.restore();
+      for (let i = 0; i < 5; i++) { const u = ((t * .5 + i / 5) % 1) * lnk; withT(lerp(A[0], B[0], u), A[1] - Math.sin(u * Math.PI) * 140, 1, lnk, () => { x.fillStyle = C.gold; x.beginPath(); x.arc(0, 0, 12, 0, 7); x.fill(); }); }
+    }
+    withT(...A, n1, n1, () => { shadow(24, 10, .16); x.fillStyle = C.purple; x.beginPath(); x.arc(0, 0, 120, 0, 7); x.fill(); noShadow(); text('محتوا', 0, 4, { size: 48, w: 900, color: C.white }); });
+    withT(...B, n2, n2, () => { shadow(24, 10, .16); x.fillStyle = C.orange; x.beginPath(); x.arc(0, 0, 120, 0, 7); x.fill(); noShadow(); text('فروش', 0, 4, { size: 48, w: 900, color: C.white }); });
+  }
+}
+
+function scene8(t) {
+  const t0 = pS(49);
+  const fk = pop(t, t0 + .1);
+  const fx = 690, fy = CY + 300;
+  // friend
+  withT(fx, fy, fk, fk, () => { shadow(24, 12, .18); avatar(120, C.purple, C.ink, C.orange); noShadow(); text('رفیقت', 0, 180, { size: 40, w: 900 }); });
+  // friend's page — wall of products
+  const pk = eo(prog(t, pS(50), pS(50) + .6));
+  if (pk > 0) {
+    withT(330, CY - 60 + (1 - pk) * 300, .62, pk, () => {
+      phone(0, 0, 460, 840, 1, 1, (sx, sy, sw, sh) => profile(sx, sy, sw, sh, t, { tileK: i => prog(t, pS(50) + .2 + i * .07, pS(50) + .5 + i * .07) }));
+    });
+  }
+  // “sure everything is OK”
+  const ok = pop(t, pS(51) + .4);
+  withT(fx + 150, fy - 200, ok, ok, () => { shadow(16, 8, .14); bubble(220, 110, C.white, 1); noShadow(); text('اوکیه!', -10, 2, { size: 46, w: 900, color: C.teal }); });
+  // send — paper plane
+  const sk = prog(t, pS(52) + .4, pS(52) + 1.8);
+  if (sk > 0) {
+    const sx = 200, sy = 1180, ex = fx - 40, ey = fy - 150, u = eio(sk);
+    const px = lerp(sx, ex, u), py = lerp(sy, ey, u) - Math.sin(u * Math.PI) * 380;
+    x.save(); x.setLineDash([4, 18]); x.lineCap = 'round'; x.lineWidth = 7; x.strokeStyle = C.mute; x.beginPath();
+    for (let i = 0; i <= 40; i++) { const v = u * i / 40; x.lineTo(lerp(sx, ex, v), lerp(sy, ey, v) - Math.sin(v * Math.PI) * 380); } x.stroke(); x.restore();
+    const ang = Math.atan2(-Math.cos(u * Math.PI) * 380 * Math.PI + (ey - sy), ex - sx);
+    withT(px, py, 1, 1 - prog(t, pS(52) + 1.7, pS(52) + 1.9), () => plane(110), ang);
+    pill('بفرست', sx, sy + 20, { bg: C.orange, sc: pop(t, pS(52) + .1), a: 1 - prog(t, pS(53), pS(53) + .4) });
+  }
+  // our voice
+  const vk = pop(t, pS(53) + .2), vo = prog(t, pS(54) - .2, pS(54) + .2);
+  withT(fx - 250, fy - 330, vk, vk * (1 - vo), () => {
+    shadow(16, 8, .14); bubble(330, 130, C.ink, 1); noShadow();
+    x.save(); x.beginPath(); x.arc(-110, 0, 44, 0, 7); x.clip(); x.fillStyle = C.ink; x.fill(); x.globalCompositeOperation = 'lighter'; x.drawImage(IMG.analyz, -150, -50, 80, 91); x.restore();
+    text('از زبونِ ما', 40, 4, { size: 40, w: 900, color: C.white });
+  });
+  // window opens in the mind
+  const wk = prog(t, pS(54) + .3, pS(54) + 1.6);
+  if (wk > 0) {
+    const wx = fx, wy = fy - 420, ww = 300, wh = 300, ok2 = eio(clamp((wk - .25) / .75));
+    withT(wx, wy, eb(clamp(wk * 3)), clamp(wk * 4), () => {
+      // light
+      const g = x.createRadialGradient(0, 0, 10, 0, 0, 420); g.addColorStop(0, 'rgba(244,183,64,.9)'); g.addColorStop(1, 'rgba(244,183,64,0)');
+      x.save(); x.globalAlpha = ok2; x.fillStyle = g; x.beginPath(); x.arc(0, 0, 420, 0, 7); x.fill();
+      x.strokeStyle = C.gold; x.lineWidth = 8; x.lineCap = 'round';
+      for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6 + t * .3; x.beginPath(); x.moveTo(Math.cos(a) * 190, Math.sin(a) * 190); x.lineTo(Math.cos(a) * (240 + 30 * Math.sin(t * 4 + i)), Math.sin(a) * (240 + 30 * Math.sin(t * 4 + i))); x.stroke(); }
+      x.restore();
+      rr(-ww / 2, -wh / 2, ww, wh, 20); x.fillStyle = '#FFF4D6'; x.fill();
+      x.strokeStyle = C.ink; x.lineWidth = 14; x.stroke();
+      // shutters
+      [-1, 1].forEach(sd => {
+        x.save(); x.translate(sd * ww / 2, 0); x.scale(Math.cos(ok2 * Math.PI * .45), 1);
+        rr(sd > 0 ? -ww / 2 : 0, -wh / 2, ww / 2, wh, 10); x.fillStyle = sd > 0 ? C.purple : C.orange; x.fill();
+        x.strokeStyle = C.ink; x.lineWidth = 8; x.stroke(); x.restore();
+      });
+      // thought dots to the head
+      [[20, 200, 18], [10, 250, 12]].forEach(([dx, dy, r]) => { x.fillStyle = C.ink; x.beginPath(); x.arc(dx, dy, r, 0, 7); x.fill(); });
+    });
+  }
+}
+
+function endCard(t) {
+  const k = eo(prog(t, SPEECH_END + .1, SPEECH_END + .9));
+  if (k <= 0) return;
+  x.save(); x.globalAlpha = k;
+  x.fillStyle = C.ink; x.beginPath(); x.arc(CX, H / 2, 1500 * eio(prog(t, SPEECH_END, SPEECH_END + .8)), 0, 7); x.fill();
+  const s = eb(prog(t, SPEECH_END + .5, SPEECH_END + 1.2));
+  withT(CX, H / 2 - 40, s, s, () => {
+    shadow(60, 30, .4); rr(-330, -235, 660, 470, 56); x.fillStyle = '#fff'; x.fill(); noShadow();
+    x.drawImage(IMG.advinista, -300, -205, 600, 424);
+  });
+  text('آنالیز گرمسار  ·  علمِ ارتباطِ بینِ محتوا و فروش', CX, H / 2 + 300, { size: 34, w: 700, color: C.paper, alpha: prog(t, SPEECH_END + 1, SPEECH_END + 1.6) });
+  x.restore();
+}
+
+const SCENES = [scene1, scene2, scene3, scene4, scene5, scene6, scene7, scene8];
+const BOUNDS = CH.map(c => c[0]).concat([SPEECH_END + 2]);
+
+// iris transition between chapters
+function drawScenes(t) {
+  const ci = chapterAt(t + .3) ;
+  const b = BOUNDS[ci], tr = prog(t, b - .3, b + .35);
+  x.save(); x.beginPath(); x.rect(0, 240, W, 1050); x.clip();
+  if (ci > 0 && tr < 1) {
+    SCENES[ci - 1](t);
+    const r = eio(tr) * 1100;
+    x.save(); x.beginPath(); x.arc(CX, CY, r, 0, 7); x.clip();
+    x.fillStyle = C.paper; x.fillRect(0, 0, W, H);
+    x.fillStyle = 'rgba(33,31,92,.08)';
+    for (let gy = 260; gy < 1260; gy += 48) for (let gx = 36; gx < W; gx += 48) { x.beginPath(); x.arc(gx, gy, 2.2, 0, 7); x.fill(); }
+    SCENES[ci](Math.max(t, b));
+    x.restore();
+    x.strokeStyle = C.orange; x.lineWidth = 26 * (1 - tr) + 4; x.beginPath(); x.arc(CX, CY, r, 0, 7); x.stroke();
+  } else SCENES[ci](t);
+  x.restore();
+}
+
+// ---------------- frame ----------------
+function renderAt(t) {
+  x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
+  drawBg(t);
+  drawScenes(t);
+  drawChrome(t);
+  drawCaption(t);
+  endCard(t);
+}
+
+function loadImg(src) { return new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = src; }); }
+window.DURATION = DURATION;
+window.renderAt = renderAt;
+window.ready = (async () => {
+  await Promise.all(['400', '700', '900'].map(w => document.fonts.load(`${w} 40px ${FONT}`, 'سلام')));
+  IMG.analyz = await loadImg('assets/analyz.png');
+  IMG.advinista = await loadImg('assets/advinista.png');
+  makeGrain(); layout(); renderAt(0);
+})();
+
+// preview playback
+if (!RENDER) {
+  const fit = () => { const s = Math.min(innerWidth / W, innerHeight / H); document.getElementById('stage').style.transform = `scale(${s})`; };
+  addEventListener('resize', fit); fit();
+  const au = document.getElementById('voice'); let raf;
+  document.getElementById('play').onclick = async () => {
+    await window.ready; au.currentTime = 0; au.play(); cancelAnimationFrame(raf);
+    const loop = () => { renderAt(au.currentTime); if (!au.ended) raf = requestAnimationFrame(loop); }; loop();
+  };
+}
+</script>
+</body>
+</html>
